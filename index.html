@@ -336,11 +336,7 @@
             graficoDatabento.applyOptions({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
         }).observe(document.getElementById('contenedor-futuros'));
 
-        const mapaMercados = {
-            'ES': 'GLBX.MDP3', 'NQ': 'GLBX.MDP3', 
-            'CL': 'XNYM.MDP3', 'GC': 'XCEC.MDP3', 
-            'YM': 'XCBT.MDP3', 'RTY': 'XCBT.MDP3' 
-        };
+        const mapaMercados = { 'ES': 'GLBX.MDP3', 'NQ': 'GLBX.MDP3', 'CL': 'GLBX.MDP3', 'GC': 'GLBX.MDP3', 'YM': 'GLBX.MDP3', 'RTY': 'GLBX.MDP3' };
 
         async function cargarDatosDatabento() {
             const apiKey = document.getElementById('apiKeyDatabento').value.trim();
