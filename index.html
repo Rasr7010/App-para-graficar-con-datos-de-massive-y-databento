@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visor Histórico Pro - Multi API</title>
+    <title>Visor Histórico Pro - Real Gaps Edition</title>
     
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -12,98 +12,70 @@
     
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #0b0e14; 
-            color: white;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: 100vh;
-            box-sizing: border-box;
+            font-family: Arial, sans-serif; background-color: #0b0e14; 
+            color: white; margin: 0; padding: 0; display: flex;
+            flex-direction: column; align-items: center; height: 100vh; box-sizing: border-box;
         }
-        
         .tab-header {
-            width: 100%;
-            background-color: #1e222d;
-            display: flex;
-            justify-content: center;
-            border-bottom: 2px solid #2b313f;
-            padding-top: 10px;
+            width: 100%; background-color: #1e222d; display: flex;
+            justify-content: center; border-bottom: 2px solid #2b313f; padding-top: 10px;
         }
         .tab-btn {
-            background-color: transparent;
-            color: #8a93a6;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.2s;
+            background-color: transparent; color: #8a93a6; border: none;
+            padding: 12px 24px; font-size: 15px; font-weight: bold;
+            cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s;
         }
         .tab-btn:hover { color: #d1d4dc; }
         .tab-btn.activo { color: #2962ff; border-bottom: 3px solid #2962ff; }
-
+        
         .vista-app {
-            display: none; 
-            flex-direction: column;
-            width: 100%;
-            height: calc(100vh - 50px);
-            align-items: center;
-            padding: 20px;
-            box-sizing: border-box;
+            display: none; flex-direction: column; width: 100%;
+            height: calc(100vh - 50px); align-items: center; padding: 20px; box-sizing: border-box;
         }
         .vista-app.activa { display: flex; }
 
         .controles {
-            background-color: #1e222d;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            max-width: 1200px;
-            box-sizing: border-box;
-            z-index: 10;
+            background-color: #1e222d; padding: 15px; border-radius: 8px;
+            margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;
+            align-items: center; justify-content: center; width: 100%; max-width: 1200px;
         }
-        input {
-            padding: 8px 12px;
-            border-radius: 4px;
-            border: 1px solid #2b313f;
-            background-color: #2b313f;
-            color: white;
-            font-size: 14px;
+        input, select {
+            padding: 8px 12px; border-radius: 4px; border: 1px solid #2b313f;
+            background-color: #2b313f; color: white; font-size: 14px;
+        }
+        .btn-accion {
+            background-color: #2962ff; color: white; border: none; padding: 8px 20px;
+            border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        .btn-accion:hover { background-color: #1e4bd8; }
+        .btn-accion:disabled { background-color: #555; cursor: not-allowed; }
+
+        .grafico-contenedor {
+            width: 100%; max-width: 1200px; flex-grow: 1; min-height: 400px;
+            position: relative; background-color: #131722; border-radius: 8px; overflow: hidden;
         }
         
-        .grafico-contenedor {
-            width: 100%;
-            max-width: 1200px;
-            flex-grow: 1;
-            min-height: 500px;
-            position: relative; 
-            background-color: #131722;
-            border-radius: 8px;
-            overflow: hidden;
+        /* TABLA DEL ESCANER */
+        .tabla-contenedor {
+            width: 100%; max-width: 1200px; background-color: #1e222d;
+            border-radius: 8px; overflow-y: auto; flex-grow: 1;
         }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+        th { background-color: #2b313f; padding: 12px; position: sticky; top: 0; z-index: 2; }
+        td { padding: 12px; border-bottom: 1px solid #2b313f; }
+        tr:hover { background-color: rgba(41, 98, 255, 0.1); }
+        .status-row { text-align: center; font-style: italic; color: #8a93a6; }
 
         .floating-toolbar {
             position: absolute; top: 15px; left: 15px; z-index: 20; 
             display: flex; gap: 5px; background: rgba(30, 34, 45, 0.85); 
-            padding: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            align-items: center;
+            padding: 6px; border-radius: 6px; align-items: center;
         }
         .floating-fullscreen {
             position: absolute; top: 15px; right: 15px; z-index: 20;
             background: rgba(30, 34, 45, 0.85); padding: 6px; border-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex;
-            align-items: center; justify-content: center;
+            display: flex; align-items: center; justify-content: center;
         }
-
         .floating-toolbar input[type="text"], .floating-toolbar select, .btn-icono {
             background-color: transparent; border: 1px solid transparent; color: #d1d4dc;
             font-size: 15px; font-weight: bold; padding: 4px 8px; cursor: pointer;
@@ -114,7 +86,6 @@
         }
         .floating-toolbar input[type="text"] { width: 80px; text-transform: uppercase; }
         .floating-toolbar select option { background-color: #1e222d; color: white; }
-        
         .btn-icono { display: flex; align-items: center; justify-content: center; padding: 4px 6px; }
         .btn-icono svg { width: 18px; height: 18px; stroke: #d1d4dc; }
     </style>
@@ -122,21 +93,21 @@
 <body>
 
     <div class="tab-header">
-        <button class="tab-btn activo" onclick="cambiarPestana('acciones')">Acciones (Massive)</button>
+        <button class="tab-btn activo" onclick="cambiarPestana('acciones')">Gráfico Acciones</button>
+        <button class="tab-btn" onclick="cambiarPestana('scanner')">Escáner de Gaps</button>
         <button class="tab-btn" onclick="cambiarPestana('futuros')">Futuros (Databento)</button>
     </div>
 
     <div id="vista-acciones" class="vista-app activa">
         <div class="controles">
-            <input type="password" id="apiKeyMassive" placeholder="API Key Massive (Polygon)" style="width: 300px;">
+            <input type="password" id="apiKeyMassive" placeholder="API Key Massive (Polygon)" style="width: 250px;">
         </div>
         <div id="contenedor-acciones" class="grafico-contenedor">
             <div class="floating-toolbar">
-                <input type="text" id="tickerMassive" placeholder="TICKER" value="TSLA" onkeypress="if(event.key === 'Enter') cargarDatosMassive()">
+                <input type="text" id="tickerMassive" value="TSLA" onkeypress="if(event.key === 'Enter') cargarDatosMassive()">
                 <select id="tempMassive" onchange="cargarDatosMassive()">
                     <option value="1/minute">1m</option>
                     <option value="5/minute" selected>5m</option>
-                    <option value="15/minute">15m</option>
                     <option value="1/hour">1H</option>
                     <option value="1/day">D</option>
                 </select>
@@ -152,13 +123,41 @@
         </div>
     </div>
 
+    <div id="vista-scanner" class="vista-app">
+        <div class="controles">
+            <button class="btn-accion" id="btn-cal-scanner">Elegir Fechas</button>
+            <input type="number" id="gapMin" placeholder="Gap Min %" style="width: 90px;" value="2">
+            <input type="number" id="gapMax" placeholder="Gap Max %" style="width: 90px;" value="20">
+            <input type="number" id="precioMin" placeholder="Precio Min $" style="width: 90px;" value="1">
+            <input type="number" id="precioMax" placeholder="Precio Max $" style="width: 90px;" value="50">
+            <button class="btn-accion" id="btnBuscarGaps" onclick="ejecutarScanner()">BUSCAR GAPS</button>
+        </div>
+        <div class="tabla-contenedor">
+            <table id="tablaGaps">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Ticker</th>
+                        <th>Cierre Ayer</th>
+                        <th>Apertura Hoy</th>
+                        <th>Gap Real %</th>
+                        <th>Volumen Hoy</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="6" class="status-row">Selecciona un rango de fechas y presiona BUSCAR GAPS.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <div id="vista-futuros" class="vista-app">
         <div class="controles">
-            <input type="password" id="apiKeyDatabento" placeholder="API Key Databento (Inicia con db_...)" style="width: 300px;">
+            <input type="password" id="apiKeyDatabento" placeholder="API Key Databento" style="width: 250px;">
         </div>
         <div id="contenedor-futuros" class="grafico-contenedor">
             <div class="floating-toolbar">
-                <input type="text" id="tickerDatabento" placeholder="TICKER" value="CL.n.0" onkeypress="if(event.key === 'Enter') cargarDatosDatabento()">
+                <input type="text" id="tickerDatabento" value="CL.n.0" onkeypress="if(event.key === 'Enter') cargarDatosDatabento()">
                 <select id="tempDatabento" onchange="cargarDatosDatabento()">
                     <option value="ohlcv-1m" selected>1m</option>
                     <option value="ohlcv-1h">1H</option>
@@ -177,24 +176,18 @@
     </div>
 
     <script>
-        // CARGAR CLAVES GUARDADAS AL ABRIR LA PÁGINA
+        // PERSISTENCIA DE API KEYS
         document.addEventListener('DOMContentLoaded', () => {
-            const claveMassiveGuardada = localStorage.getItem('claveMassivePro');
-            const claveDatabentoGuardada = localStorage.getItem('claveDatabentoPro');
-            
-            if (claveMassiveGuardada) {
-                document.getElementById('apiKeyMassive').value = claveMassiveGuardada;
-            }
-            if (claveDatabentoGuardada) {
-                document.getElementById('apiKeyDatabento').value = claveDatabentoGuardada;
-            }
+            const massiveKey = localStorage.getItem('massiveKey');
+            const bentoKey = localStorage.getItem('bentoKey');
+            if(massiveKey) document.getElementById('apiKeyMassive').value = massiveKey;
+            if(bentoKey) document.getElementById('apiKeyDatabento').value = bentoKey;
         });
 
         function cambiarPestana(pestana) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('activo'));
             event.target.classList.add('activo');
-            document.getElementById('vista-acciones').classList.remove('activa');
-            document.getElementById('vista-futuros').classList.remove('activa');
+            document.querySelectorAll('.vista-app').forEach(v => v.classList.remove('activa'));
             document.getElementById(`vista-${pestana}`).classList.add('activa');
             window.dispatchEvent(new Event('resize'));
         }
@@ -205,6 +198,139 @@
             else document.exitFullscreen();
         }
 
+        // ==========================================
+        // LÓGICA DEL ESCÁNER DE GAPS REALES
+        // ==========================================
+        let fechasScanner = { inicio: "", fin: "" };
+        flatpickr("#btn-cal-scanner", {
+            mode: "range", dateFormat: "Y-m-d", theme: "dark",
+            onClose: function(selectedDates) {
+                if (selectedDates.length === 2) {
+                    fechasScanner.inicio = selectedDates[0].toISOString().split('T')[0];
+                    fechasScanner.fin = selectedDates[1].toISOString().split('T')[0];
+                }
+            }
+        });
+
+        // Motor de tiempo: Retrocede días saltando fines de semana
+        function obtenerDiaHabilAnterior(fechaStr) {
+            let d = new Date(fechaStr + "T00:00:00");
+            let diaSemana = d.getDay(); // 0=Dom, 1=Lun, 6=Sab
+            let diff = 1;
+            if (diaSemana === 1) diff = 3; // Lunes retrocede al Viernes
+            if (diaSemana === 0) diff = 2; // Domingo retrocede al Viernes
+            d.setDate(d.getDate() - diff);
+            return d.toISOString().split('T')[0];
+        }
+
+        // Memoria Caché para no repetir descargas de la API
+        const dataCache = {}; 
+        
+        async function descargarDiaMercado(fechaStr, apiKey) {
+            if (dataCache[fechaStr]) return dataCache[fechaStr]; // Usar caché si existe
+            
+            const url = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${fechaStr}?adjusted=true&apiKey=${apiKey}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Error API / Límite alcanzado");
+            
+            const data = await res.json();
+            const mapaTickers = {};
+            if (data.results) {
+                data.results.forEach(stock => mapaTickers[stock.T] = stock);
+            }
+            dataCache[fechaStr] = mapaTickers; // Guardar en caché
+            return mapaTickers;
+        }
+
+        async function ejecutarScanner() {
+            const apiKey = document.getElementById('apiKeyMassive').value;
+            const gapMin = parseFloat(document.getElementById('gapMin').value);
+            const gapMax = parseFloat(document.getElementById('gapMax').value);
+            const precioMin = parseFloat(document.getElementById('precioMin').value);
+            const precioMax = parseFloat(document.getElementById('precioMax').value);
+            const btn = document.getElementById('btnBuscarGaps');
+            
+            if (!apiKey || !fechasScanner.inicio || !fechasScanner.fin) { alert("Configura API Key y elige las fechas en el calendario."); return; }
+            localStorage.setItem('massiveKey', apiKey);
+
+            const tablaBody = document.querySelector("#tablaGaps tbody");
+            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Iniciando escaneo real de Cierres vs Aperturas...</td></tr>`;
+            btn.disabled = true;
+
+            let actual = new Date(fechasScanner.inicio + "T00:00:00");
+            let limite = new Date(fechasScanner.fin + "T00:00:00");
+            let filasHtmlGlobales = "";
+            let totalEncontrados = 0;
+
+            try {
+                // Iterar día por día en el rango elegido
+                while(actual <= limite) {
+                    let diaSemana = actual.getDay();
+                    
+                    // Solo analizamos días de lunes a viernes (1 a 5)
+                    if (diaSemana !== 0 && diaSemana !== 6) { 
+                        let fechaHoyStr = actual.toISOString().split('T')[0];
+                        let fechaAyerStr = obtenerDiaHabilAnterior(fechaHoyStr);
+
+                        // Imprimir estado en pantalla
+                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Descargando datos del ${fechaHoyStr}... (Cierre previo: ${fechaAyerStr})</td></tr>` + filasHtmlGlobales;
+
+                        // Descargar bloque de HOY y bloque de AYER (La caché evita dobles descargas)
+                        let dataAyer = await descargarDiaMercado(fechaAyerStr, apiKey);
+                        let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
+
+                        // Cruzar los datos para encontrar Gaps
+                        for (let ticker in dataHoy) {
+                            let hoy = dataHoy[ticker];
+                            let ayer = dataAyer[ticker];
+
+                            // Validar que el ticker existió ayer y hoy
+                            if (ayer && ayer.c && hoy && hoy.o) {
+                                // FÓRMULA DEL GAP REAL
+                                let gapPorcentaje = ((hoy.o / ayer.c) - 1) * 100;
+                                let esGapValido = gapPorcentaje >= 0 ? 
+                                    (gapPorcentaje >= gapMin && gapPorcentaje <= gapMax) : 
+                                    (gapPorcentaje <= -gapMin && gapPorcentaje >= -gapMax); // Funciona para gaps alcistas y bajistas
+
+                                if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
+                                    totalEncontrados++;
+                                    let colorStr = gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
+                                    let signo = gapPorcentaje > 0 ? '+' : '';
+                                    
+                                    filasHtmlGlobales += `<tr>
+                                        <td>${fechaHoyStr}</td>
+                                        <td><strong>${ticker}</strong></td>
+                                        <td>$${ayer.c.toFixed(2)}</td>
+                                        <td>$${hoy.o.toFixed(2)}</td>
+                                        <td style="color: ${colorStr}; font-weight: bold;">${signo}${gapPorcentaje.toFixed(2)}%</td>
+                                        <td>${hoy.v.toLocaleString()}</td>
+                                    </tr>`;
+                                }
+                            }
+                        }
+                        // Pequeña pausa para no saturar la API
+                        await new Promise(resolve => setTimeout(resolve, 300)); 
+                    }
+                    actual.setDate(actual.getDate() + 1);
+                }
+
+                if(totalEncontrados === 0) {
+                    tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. No se encontraron tickers que cumplan estos filtros.</td></tr>`;
+                } else {
+                    tablaBody.innerHTML = filasHtmlGlobales;
+                }
+
+            } catch (error) {
+                console.error(error);
+                tablaBody.innerHTML = `<tr><td colspan="6" style="color: #ef5350; text-align: center;">Error al descargar datos. Es posible que hayas alcanzado el límite de tu API de Massive/Polygon. Intenta con un rango de fechas más pequeño.</td></tr>` + filasHtmlGlobales;
+            }
+            
+            btn.disabled = false;
+        }
+
+        // ==========================================
+        // LÓGICA DE GRÁFICOS (ACCIONES Y FUTUROS)
+        // ==========================================
         function crearConfigGrafico(zonaHoraria) {
             return {
                 layout: { background: { type: 'solid', color: '#131722' }, textColor: '#d1d4dc' },
@@ -215,31 +341,23 @@
                     borderColor: '#2b313f', timeVisible: true,
                     tickMarkFormatter: (time, tickMarkType) => {
                         const date = new Date(time * 1000);
-                        if (tickMarkType === LightweightCharts.TickMarkType.Time) {
-                            return date.toLocaleTimeString('en-US', { timeZone: zonaHoraria, hour12: false, hour: '2-digit', minute: '2-digit' });
-                        } else {
-                            return date.toLocaleDateString('en-US', { timeZone: zonaHoraria, month: 'short', day: 'numeric' });
-                        }
+                        return tickMarkType === LightweightCharts.TickMarkType.Time 
+                            ? date.toLocaleTimeString('en-US', { timeZone: zonaHoraria, hour12: false, hour: '2-digit', minute: '2-digit' }) 
+                            : date.toLocaleDateString('en-US', { timeZone: zonaHoraria, month: 'short', day: 'numeric' });
                     }
                 },
                 localization: {
                     timeFormatter: timestamp => {
                         const date = new Date(timestamp * 1000);
-                        const formatter = new Intl.DateTimeFormat('en-US', {
-                            timeZone: zonaHoraria, weekday: 'short', day: '2-digit', month: 'short',
-                            year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-                        });
-                        const parts = formatter.formatToParts(date);
-                        const p = {}; parts.forEach(part => p[part.type] = part.value);
+                        const f = new Intl.DateTimeFormat('en-US', { timeZone: zonaHoraria, weekday: 'short', day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+                        const p = {}; f.formatToParts(date).forEach(part => p[part.type] = part.value);
                         return `${p.weekday} ${p.day} ${p.month} '${p.year}  ${p.hour}:${p.minute}`;
                     }
                 }
             };
         }
 
-        // ==========================================
-        // MASSIVE LOGIC (ACCIONES) - CON VWAP Y GUARDADO DE CLAVE
-        // ==========================================
+        // ACCIONES (MASSIVE)
         let fechasMassive = { inicio: "", fin: "" };
         flatpickr("#btn-cal-massive", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-acciones'),
@@ -255,9 +373,7 @@
         const graficoMassive = LightweightCharts.createChart(document.getElementById('contenedor-acciones'), crearConfigGrafico('America/New_York'));
         const fondoMassive = graficoMassive.addAreaSeries({ priceScaleId: 'bg_scale', lineVisible: false, topColor: 'rgba(42, 46, 57, 0.6)', bottomColor: 'rgba(42, 46, 57, 0.6)', lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, lineType: 1, autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }) });
         graficoMassive.priceScale('bg_scale').applyOptions({ visible: false, scaleMargins: { top: 0, bottom: 0 } });
-        
         const vwapMassive = graficoMassive.addLineSeries({ color: '#ff9800', lineWidth: 2, crosshairMarkerVisible: false, priceLineVisible: false });
-        
         const velasMassive = graficoMassive.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderDownColor: '#ef5350', borderUpColor: '#26a69a', wickDownColor: '#ef5350', wickUpColor: '#26a69a' });
         const volMassive = graficoMassive.addHistogramSeries({ priceScaleId: 'vol_scale', priceFormat: { type: 'volume' } });
         graficoMassive.priceScale('vol_scale').applyOptions({ visible: false, scaleMargins: { top: 0.7, bottom: 0 } });
@@ -268,92 +384,51 @@
         }).observe(document.getElementById('contenedor-acciones'));
 
         async function cargarDatosMassive() {
-            const tickerRaw = document.getElementById('tickerMassive').value.toUpperCase().trim();
-            const tickerLimpio = encodeURIComponent(tickerRaw);
-            const apiKey = document.getElementById('apiKeyMassive').value;
-            const temporalidad = document.getElementById('tempMassive').value;
-            const partes = temporalidad.split('/'); 
-            const multiplicador = partes[0];
-            const rango = partes[1];
+            const tk = encodeURIComponent(document.getElementById('tickerMassive').value.toUpperCase().trim());
+            const key = document.getElementById('apiKeyMassive').value;
+            localStorage.setItem('massiveKey', key);
+            const [mult, ran] = document.getElementById('tempMassive').value.split('/'); 
+            if (!key || !fechasMassive.inicio) return;
 
-            if (!apiKey || !fechasMassive.inicio || !fechasMassive.fin) return;
-
-            // GUARDAR CLAVE EN EL NAVEGADOR
-            localStorage.setItem('claveMassivePro', apiKey);
-
-            const url = `https://api.massive.com/v2/aggs/ticker/${tickerLimpio}/range/${multiplicador}/${rango}/${fechasMassive.inicio}/${fechasMassive.fin}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
-
+            const url = `https://api.polygon.io/v2/aggs/ticker/${tk}/range/${mult}/${ran}/${fechasMassive.inicio}/${fechasMassive.fin}?adjusted=true&sort=asc&limit=50000&apiKey=${key}`;
             try {
-                const respuesta = await fetch(url);
-                const datos = await respuesta.json();
+                const res = await fetch(url); const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    const vForm = [], volForm = [], bgForm = [], bgRaw = [], vwapForm = []; 
+                    const esDiario = (mult === '1' && ran === 'day');
+                    let sVolPr = 0, sVol = 0, diaActual = null;
 
-                if (datos.results && datos.results.length > 0) {
-                    const velasFormateadas = []; 
-                    const volumenFormateado = []; 
-                    const fondoFormateado = []; 
-                    const estadosFondoRaw = [];
-                    const vwapFormateado = []; 
-                    
-                    const esDiario = (multiplicador === '1' && rango === 'day');
-                    
-                    let sumVolPrice = 0;
-                    let sumVol = 0;
-                    let diaActualVWAP = null;
-
-                    datos.results.forEach(barra => {
-                        const tiempoUnix = barra.t / 1000;
-                        const fechaCompletaNY = new Date(barra.t).toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit', year: 'numeric', month: 'numeric', day: 'numeric' });
-                        const [fechaParte, horaParte] = fechaCompletaNY.split(', ');
+                    data.results.forEach(b => {
+                        const tUnix = b.t / 1000;
+                        const [fPt, hPt] = new Date(b.t).toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit', year: 'numeric', month: 'numeric', day: 'numeric' }).split(', ');
                         
-                        const esAlcista = barra.c >= barra.o;
-                        const colorVolumen = esAlcista ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)';
-                        let esHorarioExtendido = false;
-
+                        let ext = false;
                         if (!esDiario) {
-                            const partesHora = horaParte.split(':');
-                            const minutosTotales = parseInt(partesHora[0]) * 60 + parseInt(partesHora[1]);
-                            const esMercadoRegular = minutosTotales >= 570 && minutosTotales < 960; 
-                            if (!esMercadoRegular) esHorarioExtendido = true;
+                            const [hh, mm] = hPt.split(':'); const minT = parseInt(hh) * 60 + parseInt(mm);
+                            if (minT < 570 || minT >= 960) ext = true;
                         }
 
-                        if (diaActualVWAP !== fechaParte) {
-                            sumVolPrice = 0;
-                            sumVol = 0;
-                            diaActualVWAP = fechaParte;
-                        }
-                        const precioTipico = (barra.h + barra.l + barra.c) / 3;
-                        sumVolPrice += (precioTipico * barra.v);
-                        sumVol += barra.v;
-                        const vwapActual = sumVolPrice / sumVol;
+                        if (diaActual !== fPt) { sVolPr = 0; sVol = 0; diaActual = fPt; }
+                        sVolPr += ((b.h + b.l + b.c) / 3 * b.v); sVol += b.v;
 
-                        velasFormateadas.push({ time: tiempoUnix, open: barra.o, high: barra.h, low: barra.l, close: barra.c });
-                        volumenFormateado.push({ time: tiempoUnix, value: barra.v, color: colorVolumen });
-                        vwapFormateado.push({ time: tiempoUnix, value: vwapActual });
-                        estadosFondoRaw.push({ time: tiempoUnix, extendido: esHorarioExtendido });
+                        vForm.push({ time: tUnix, open: b.o, high: b.h, low: b.l, close: b.c });
+                        volForm.push({ time: tUnix, value: b.v, color: b.c >= b.o ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)' });
+                        vwapForm.push({ time: tUnix, value: sVolPr / sVol });
+                        bgRaw.push({ time: tUnix, ext: ext });
                     });
 
-                    for (let i = 0; i < estadosFondoRaw.length; i++) {
-                        const actual = estadosFondoRaw[i];
-                        let valorParaGraficar = actual.extendido ? 1 : 0;
-                        if (i < estadosFondoRaw.length - 1) {
-                            const siguiente = estadosFondoRaw[i + 1];
-                            if (actual.extendido && !siguiente.extendido) valorParaGraficar = 0;
-                        }
-                        fondoFormateado.push({ time: actual.time, value: valorParaGraficar });
-                    }
+                    bgRaw.forEach((a, i) => {
+                        let val = a.ext ? 1 : 0;
+                        if (i < bgRaw.length - 1 && a.ext && !bgRaw[i+1].ext) val = 0;
+                        bgForm.push({ time: a.time, value: val });
+                    });
 
-                    fondoMassive.setData(fondoFormateado);
-                    vwapMassive.setData(vwapFormateado); 
-                    velasMassive.setData(velasFormateadas);
-                    volMassive.setData(volumenFormateado);
-                    graficoMassive.timeScale().fitContent(); 
+                    fondoMassive.setData(bgForm); vwapMassive.setData(vwapForm); velasMassive.setData(vForm); volMassive.setData(volForm); graficoMassive.timeScale().fitContent(); 
                 }
-            } catch (error) { console.error(error); }
+            } catch (e) { console.error(e); }
         }
 
-        // ==========================================
-        // DATABENTO LOGIC (VIA NETLIFY) - EN PAUSA PERO CON GUARDADO
-        // ==========================================
+        // FUTUROS (DATABENTO - NETLIFY)
         let fechasDatabento = { inicio: "", fin: "" };
         flatpickr("#btn-cal-databento", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-futuros'),
@@ -379,57 +454,30 @@
         const mapaMercados = { 'ES': 'GLBX.MDP3', 'NQ': 'GLBX.MDP3', 'CL': 'GLBX.MDP3', 'GC': 'GLBX.MDP3', 'YM': 'GLBX.MDP3', 'RTY': 'GLBX.MDP3' };
 
         async function cargarDatosDatabento() {
-            const apiKey = document.getElementById('apiKeyDatabento').value.trim();
-            const tickerRaw = document.getElementById('tickerDatabento').value.toUpperCase().trim();
+            const key = document.getElementById('apiKeyDatabento').value.trim();
+            const tk = document.getElementById('tickerDatabento').value.toUpperCase().trim();
             const schema = document.getElementById('tempDatabento').value;
+            if (!key || !fechasDatabento.inicio) return;
+            localStorage.setItem('bentoKey', key);
 
-            if (!apiKey) { alert("Ingresa tu API Key de Databento (empieza con db_)"); return; }
-            if (!fechasDatabento.inicio || !fechasDatabento.fin) { alert("Selecciona las fechas primero en el calendario."); return; }
-
-            // GUARDAR CLAVE EN EL NAVEGADOR
-            localStorage.setItem('claveDatabentoPro', apiKey);
-
-            const baseSymbol = tickerRaw.split('.')[0]; 
-            const dataset = mapaMercados[baseSymbol] || 'GLBX.MDP3'; 
-
-            const url = `/.netlify/functions/databento?ticker=${encodeURIComponent(tickerRaw)}&start=${fechasDatabento.inicio}&end=${fechasDatabento.fin}&schema=${schema}&dataset=${dataset}&apiKey=${encodeURIComponent(apiKey)}`;
+            const ds = mapaMercados[tk.split('.')[0]] || 'GLBX.MDP3'; 
+            const url = `/.netlify/functions/databento?ticker=${encodeURIComponent(tk)}&start=${fechasDatabento.inicio}&end=${fechasDatabento.fin}&schema=${schema}&dataset=${ds}&apiKey=${encodeURIComponent(key)}`;
 
             try {
-                const respuesta = await fetch(url);
-                if (!respuesta.ok) {
-                    const errorTxt = await respuesta.text();
-                    alert(`Error de Databento: ${errorTxt}`);
-                    return;
-                }
-                const textoCrudo = await respuesta.text();
-                if (!textoCrudo.trim()) {
-                    alert("Databento no encontró operaciones para este contrato en estas fechas.");
-                    return;
-                }
-                const lineas = textoCrudo.trim().split('\n');
-                const velasFormateadas = [];
-                const volumenFormateado = [];
-                lineas.forEach(linea => {
-                    if (!linea) return;
-                    const barra = JSON.parse(linea);
-                    const tiempoUnix = Math.floor(barra.ts_event / 1000000000);
-                    const o = barra.open / 1000000000;
-                    const h = barra.high / 1000000000;
-                    const l = barra.low / 1000000000;
-                    const c = barra.close / 1000000000;
-                    const v = barra.volume;
-                    velasFormateadas.push({ time: tiempoUnix, open: o, high: h, low: l, close: c });
-                    const esAlcista = c >= o;
-                    const colorVolumen = esAlcista ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)';
-                    volumenFormateado.push({ time: tiempoUnix, value: v, color: colorVolumen });
+                const res = await fetch(url);
+                if (!res.ok) { alert(`Error Databento: ${await res.text()}`); return; }
+                const txt = await res.text();
+                if (!txt.trim()) return;
+                
+                const vForm = [], volForm = [];
+                txt.trim().split('\n').forEach(l => {
+                    if (!l) return; const b = JSON.parse(l);
+                    const tU = Math.floor(b.ts_event / 1000000000), o = b.open/1e9, h = b.high/1e9, l_ = b.low/1e9, c = b.close/1e9;
+                    vForm.push({ time: tU, open: o, high: h, low: l_, close: c });
+                    volForm.push({ time: tU, value: b.volume, color: c >= o ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)' });
                 });
-                velasDatabento.setData(velasFormateadas);
-                volDatabento.setData(volumenFormateado);
-                graficoDatabento.timeScale().fitContent();
-            } catch (error) {
-                console.error("Detalle del error:", error);
-                alert("Error de red.");
-            }
+                velasDatabento.setData(vForm); volDatabento.setData(volForm); graficoDatabento.timeScale().fitContent();
+            } catch (e) { alert("Error de red."); }
         }
     </script>
 </body>
