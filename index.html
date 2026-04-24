@@ -177,6 +177,19 @@
     </div>
 
     <script>
+        // CARGAR CLAVES GUARDADAS AL ABRIR LA PÁGINA
+        document.addEventListener('DOMContentLoaded', () => {
+            const claveMassiveGuardada = localStorage.getItem('claveMassivePro');
+            const claveDatabentoGuardada = localStorage.getItem('claveDatabentoPro');
+            
+            if (claveMassiveGuardada) {
+                document.getElementById('apiKeyMassive').value = claveMassiveGuardada;
+            }
+            if (claveDatabentoGuardada) {
+                document.getElementById('apiKeyDatabento').value = claveDatabentoGuardada;
+            }
+        });
+
         function cambiarPestana(pestana) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('activo'));
             event.target.classList.add('activo');
@@ -225,7 +238,7 @@
         }
 
         // ==========================================
-        // MASSIVE LOGIC (ACCIONES) - AHORA CON VWAP
+        // MASSIVE LOGIC (ACCIONES) - CON VWAP Y GUARDADO DE CLAVE
         // ==========================================
         let fechasMassive = { inicio: "", fin: "" };
         flatpickr("#btn-cal-massive", {
@@ -243,7 +256,6 @@
         const fondoMassive = graficoMassive.addAreaSeries({ priceScaleId: 'bg_scale', lineVisible: false, topColor: 'rgba(42, 46, 57, 0.6)', bottomColor: 'rgba(42, 46, 57, 0.6)', lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, lineType: 1, autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }) });
         graficoMassive.priceScale('bg_scale').applyOptions({ visible: false, scaleMargins: { top: 0, bottom: 0 } });
         
-        // CREADA LA SERIE PARA EL VWAP (Naranja brillante)
         const vwapMassive = graficoMassive.addLineSeries({ color: '#ff9800', lineWidth: 2, crosshairMarkerVisible: false, priceLineVisible: false });
         
         const velasMassive = graficoMassive.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderDownColor: '#ef5350', borderUpColor: '#26a69a', wickDownColor: '#ef5350', wickUpColor: '#26a69a' });
@@ -266,6 +278,9 @@
 
             if (!apiKey || !fechasMassive.inicio || !fechasMassive.fin) return;
 
+            // GUARDAR CLAVE EN EL NAVEGADOR
+            localStorage.setItem('claveMassivePro', apiKey);
+
             const url = `https://api.massive.com/v2/aggs/ticker/${tickerLimpio}/range/${multiplicador}/${rango}/${fechasMassive.inicio}/${fechasMassive.fin}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
 
             try {
@@ -277,11 +292,10 @@
                     const volumenFormateado = []; 
                     const fondoFormateado = []; 
                     const estadosFondoRaw = [];
-                    const vwapFormateado = []; // Arreglo limpio para el VWAP
+                    const vwapFormateado = []; 
                     
                     const esDiario = (multiplicador === '1' && rango === 'day');
                     
-                    // Variables para calcular el VWAP diario
                     let sumVolPrice = 0;
                     let sumVol = 0;
                     let diaActualVWAP = null;
@@ -302,7 +316,6 @@
                             if (!esMercadoRegular) esHorarioExtendido = true;
                         }
 
-                        // MATEMÁTICA DEL VWAP
                         if (diaActualVWAP !== fechaParte) {
                             sumVolPrice = 0;
                             sumVol = 0;
@@ -330,7 +343,7 @@
                     }
 
                     fondoMassive.setData(fondoFormateado);
-                    vwapMassive.setData(vwapFormateado); // Inyectamos el VWAP al gráfico
+                    vwapMassive.setData(vwapFormateado); 
                     velasMassive.setData(velasFormateadas);
                     volMassive.setData(volumenFormateado);
                     graficoMassive.timeScale().fitContent(); 
@@ -339,7 +352,7 @@
         }
 
         // ==========================================
-        // DATABENTO LOGIC (VIA NETLIFY) - EN PAUSA
+        // DATABENTO LOGIC (VIA NETLIFY) - EN PAUSA PERO CON GUARDADO
         // ==========================================
         let fechasDatabento = { inicio: "", fin: "" };
         flatpickr("#btn-cal-databento", {
@@ -372,6 +385,9 @@
 
             if (!apiKey) { alert("Ingresa tu API Key de Databento (empieza con db_)"); return; }
             if (!fechasDatabento.inicio || !fechasDatabento.fin) { alert("Selecciona las fechas primero en el calendario."); return; }
+
+            // GUARDAR CLAVE EN EL NAVEGADOR
+            localStorage.setItem('claveDatabentoPro', apiKey);
 
             const baseSymbol = tickerRaw.split('.')[0]; 
             const dataset = mapaMercados[baseSymbol] || 'GLBX.MDP3'; 
