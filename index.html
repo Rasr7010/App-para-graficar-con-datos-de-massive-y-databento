@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visor Histórico Pro - Real Gaps & Pre-Market</title>
+    <title>Visor Histórico Pro - Escáner Transparente</title>
     
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -61,11 +61,12 @@
             border-radius: 8px; overflow-y: auto; flex-grow: 1;
         }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
-        th { background-color: #2b313f; padding: 12px; position: sticky; top: 0; z-index: 2; }
-        td { padding: 12px; border-bottom: 1px solid #2b313f; }
-        tr:hover { background-color: rgba(41, 98, 255, 0.1); }
+        th { background-color: #2b313f; padding: 12px; position: sticky; top: 0; z-index: 2; border-bottom: 2px solid #0b0e14;}
+        td { padding: 12px; border-bottom: 1px solid #2b313f; transition: opacity 0.3s; }
+        tr:hover td { background-color: rgba(41, 98, 255, 0.1); }
         .status-row { text-align: center; font-style: italic; color: #8a93a6; }
         .error-row { text-align: center; font-weight: bold; color: #ef5350; background-color: rgba(239, 83, 80, 0.1); }
+        .fila-descartada { opacity: 0.4; }
 
         .floating-toolbar {
             position: absolute; top: 15px; left: 15px; z-index: 20; 
@@ -143,7 +144,7 @@
             <input type="number" id="precioMax" style="width: 60px;" value="50">
 
             <span class="etiqueta-param">Vol Mín Pre-Market:</span>
-            <input type="number" id="volMin" style="width: 100px;" value="1000000" title="Volumen solo antes del toque de campana">
+            <input type="number" id="volMin" style="width: 100px;" value="1000000">
             
             <button class="btn-accion" id="btnBuscarGaps" onclick="ejecutarScanner()">BUSCAR</button>
         </div>
@@ -159,7 +160,7 @@
                         <th>Vol. Pre-Market</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="cuerpoTablaGaps">
                     <tr><td colspan="6" class="status-row">Selecciona un rango de fechas y presiona BUSCAR.</td></tr>
                 </tbody>
             </table>
@@ -213,7 +214,7 @@
         }
 
         // ==========================================
-        // LÓGICA DEL ESCÁNER DE GAPS EN 2 FASES
+        // ESCÁNER DE GAPS: MOTOR TRANSPARENTE
         // ==========================================
         let fechasScanner = { inicio: "", fin: "" };
         flatpickr("#btn-cal-scanner", {
@@ -230,66 +231,48 @@
         
         async function descargarDiaMercado(fechaStr, apiKey) {
             if (dataCache[fechaStr]) return dataCache[fechaStr]; 
-            
             const url = `https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/${fechaStr}?adjusted=true&apiKey=${apiKey}`;
             const res = await fetch(url);
             
-            if (!res.ok) {
-                if (res.status === 429) throw new Error("RATE_LIMIT");
-                throw new Error("API_ERROR");
-            }
-            
+            if (!res.ok) throw new Error("RATE_LIMIT");
             const data = await res.json();
-            
-            // Detección de error silencioso de Massive
-            if (data.status && data.status.toUpperCase() === "ERROR") {
-                if (data.error && data.error.toLowerCase().includes("requests")) throw new Error("RATE_LIMIT");
-                throw new Error("API_ERROR");
-            }
+            if (data.status === "ERROR") throw new Error("RATE_LIMIT");
 
             const mapaTickers = {};
-            if (data.results) {
-                data.results.forEach(stock => mapaTickers[stock.T] = stock);
-            }
+            if (data.results) data.results.forEach(stock => mapaTickers[stock.T] = stock);
+            
             dataCache[fechaStr] = mapaTickers; 
             return mapaTickers;
         }
 
-        // FASE 2: MOTOR QUIRÚRGICO DEL PRE-MARKET (CON DETECCIÓN DE BLOQUEOS)
         async function obtenerVolumenPremarket(ticker, fecha, apiKey) {
             const url = `https://api.massive.com/v2/aggs/ticker/${ticker}/range/1/minute/${fecha}/${fecha}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
             try {
                 const res = await fetch(url);
-                if (res.status === 429) return -2; // Código de Bloqueo por Velocidad
+                if (!res.ok || res.status === 429) return -2; 
                 
-                if (!res.ok) return 0;
                 const data = await res.json();
-                
-                // Detección de error silencioso
-                if (data.status && data.status.toUpperCase() === "ERROR") {
-                    if (data.error && data.error.toLowerCase().includes("requests")) return -2; // Bloqueo silencioso
-                    return 0; 
-                }
-
-                if (!data.results) return 0;
+                if (data.status === "ERROR") return -2; 
+                if (!data.results) return 0; 
 
                 let volPM = 0;
+                const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
+                
                 data.results.forEach(b => {
-                    const f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: 'numeric', minute: 'numeric' });
-                    const p = {};
-                    f.formatToParts(new Date(b.t)).forEach(part => p[part.type] = part.value);
+                    const parts = formatter.formatToParts(new Date(b.t));
+                    let hh = 0, mm = 0;
+                    parts.forEach(p => {
+                        if (p.type === 'hour') hh = parseInt(p.value, 10);
+                        if (p.type === 'minute') mm = parseInt(p.value, 10);
+                    });
+                    if (hh === 24) hh = 0;
                     
-                    const hh = parseInt(p.hour, 10) === 24 ? 0 : parseInt(p.hour, 10);
-                    const mm = parseInt(p.minute, 10);
                     const minTotales = hh * 60 + mm;
-                    
-                    if (minTotales >= 240 && minTotales < 570) { // 04:00 a 09:29
-                        volPM += b.v;
-                    }
+                    if (minTotales >= 240 && minTotales < 570) volPM += b.v; // 04:00 AM a 09:29 AM
                 });
                 return volPM;
             } catch (e) {
-                return 0; 
+                return -2; 
             }
         }
 
@@ -301,99 +284,104 @@
             const precioMax = parseFloat(document.getElementById('precioMax').value);
             const volMin = parseFloat(document.getElementById('volMin').value) || 0; 
             const btn = document.getElementById('btnBuscarGaps');
+            const tabla = document.getElementById('cuerpoTablaGaps');
             
-            if (!apiKey || !fechasScanner.inicio || !fechasScanner.fin) { alert("Configura API Key y elige las fechas en el calendario."); return; }
+            if (!apiKey || !fechasScanner.inicio || !fechasScanner.fin) { alert("Configura API Key y elige las fechas."); return; }
             localStorage.setItem('massiveKey', apiKey);
 
-            const tablaBody = document.querySelector("#tablaGaps tbody");
-            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Iniciando escaneo dinámico de gaps...</td></tr>`;
+            tabla.innerHTML = `<tr><td colspan="6" class="status-row">Fase 1: Analizando mercado global...</td></tr>`;
             btn.disabled = true;
 
             let actual = new Date(fechasScanner.inicio + "T00:00:00");
             let limite = new Date(fechasScanner.fin + "T00:00:00");
-            let filasHtmlGlobales = "";
-            let totalEncontrados = 0;
-            let escaneoInterrumpido = false;
+            let htmlGlobal = "";
 
             try {
-                while(actual <= limite && !escaneoInterrumpido) {
+                while(actual <= limite) {
                     let diaSemana = actual.getDay();
-                    
                     if (diaSemana !== 0 && diaSemana !== 6) { 
                         let fechaHoyStr = actual.toISOString().split('T')[0];
-
-                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Fase 1: Analizando el mercado global del ${fechaHoyStr}...</td></tr>` + filasHtmlGlobales;
                         let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
 
-                        if (Object.keys(dataHoy).length === 0) {
-                            actual.setDate(actual.getDate() + 1);
-                            continue;
-                        }
-
-                        let dataAyer = null;
-                        let fechaAyerStr = "";
-                        let fechaBusqueda = new Date(fechaHoyStr + "T00:00:00");
-                        let intentosRetroceso = 5; 
-                        
-                        while(intentosRetroceso > 0) {
-                            fechaBusqueda.setDate(fechaBusqueda.getDate() - 1);
-                            let d = fechaBusqueda.getDay();
-                            if (d !== 0 && d !== 6) { 
-                                let fBusqStr = fechaBusqueda.toISOString().split('T')[0];
-                                let dataTemp = await descargarDiaMercado(fBusqStr, apiKey);
-                                if (Object.keys(dataTemp).length > 0) {
-                                    dataAyer = dataTemp;
-                                    fechaAyerStr = fBusqStr;
-                                    break; 
-                                }
-                            }
-                            intentosRetroceso--;
-                        }
-
-                        if (dataAyer) {
-                            for (let ticker in dataHoy) {
-                                if (escaneoInterrumpido) break;
-
-                                let hoy = dataHoy[ticker];
-                                let ayer = dataAyer[ticker];
-
-                                if (ayer && ayer.c && hoy && hoy.o) {
-                                    let gapPorcentaje = ((hoy.o / ayer.c) - 1) * 100;
-                                    let esGapValido = gapPorcentaje >= gapMin && gapPorcentaje <= gapMax;
-
-                                    if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
-                                        
-                                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row" style="color: #2962ff;">Fase 2: Sumando velas Pre-Market para ${ticker}...</td></tr>` + filasHtmlGlobales;
-                                        
-                                        let volPremarket = await obtenerVolumenPremarket(ticker, fechaHoyStr, apiKey);
-
-                                        // FRENO DE MANO AUTOMÁTICO PARA PROTEGER LA API
-                                        while (volPremarket === -2) {
-                                            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row" style="color: #ff9800; font-weight: bold;">⏳ Límite de API alcanzado. Pausa automática de 61s para continuar con ${ticker} sin perder datos...</td></tr>` + filasHtmlGlobales;
-                                            await new Promise(resolve => setTimeout(resolve, 61000)); // Espera 61 segundos
-                                            volPremarket = await obtenerVolumenPremarket(ticker, fechaHoyStr, apiKey); // Reintenta el mismo ticker
-                                        }
-
-                                        if (volPremarket >= volMin) {
-                                            totalEncontrados++;
-                                            let colorStr = gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
-                                            let signo = gapPorcentaje > 0 ? '+' : '';
-                                            
-                                            filasHtmlGlobales += `<tr>
-                                                <td>${fechaHoyStr}</td>
-                                                <td><strong>${ticker}</strong></td>
-                                                <td>$${ayer.c.toFixed(2)}</td>
-                                                <td>$${hoy.o.toFixed(2)}</td>
-                                                <td style="color: ${colorStr}; font-weight: bold;">${signo}${gapPorcentaje.toFixed(2)}%</td>
-                                                <td>${volPremarket.toLocaleString()}</td>
-                                            </tr>`;
-                                            
-                                            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneando mercado...</td></tr>` + filasHtmlGlobales;
-                                        }
-
-                                        // Micro-pausa de 250ms para no disparar las alarmas de DDoS de la API
-                                        await new Promise(resolve => setTimeout(resolve, 250)); 
+                        if (Object.keys(dataHoy).length > 0) {
+                            let fechaBusqueda = new Date(fechaHoyStr + "T00:00:00");
+                            let dataAyer = null;
+                            let intentosRetroceso = 5; 
+                            
+                            while(intentosRetroceso > 0) {
+                                fechaBusqueda.setDate(fechaBusqueda.getDate() - 1);
+                                let d = fechaBusqueda.getDay();
+                                if (d !== 0 && d !== 6) { 
+                                    let fBusqStr = fechaBusqueda.toISOString().split('T')[0];
+                                    let dataTemp = await descargarDiaMercado(fBusqStr, apiKey);
+                                    if (Object.keys(dataTemp).length > 0) {
+                                        dataAyer = dataTemp;
+                                        break; 
                                     }
+                                }
+                                intentosRetroceso--;
+                            }
+
+                            // ALGORITMO TRANSPARENTE
+                            if (dataAyer) {
+                                let tickersCandidatos = [];
+                                
+                                // Fase 1: Filtro de Precio y Porcentaje
+                                for (let ticker in dataHoy) {
+                                    let hoy = dataHoy[ticker];
+                                    let ayer = dataAyer[ticker];
+                                    if (ayer && ayer.c && hoy && hoy.o) {
+                                        let gapPorcentaje = ((hoy.o / ayer.c) - 1) * 100;
+                                        let esGapValido = gapPorcentaje >= gapMin && gapPorcentaje <= gapMax;
+                                        if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
+                                            tickersCandidatos.push({ ticker, ayer, hoy, gapPorcentaje });
+                                        }
+                                    }
+                                }
+
+                                // Pintar los candidatos en la tabla ANTES de calcular el volumen
+                                for (let i = 0; i < tickersCandidatos.length; i++) {
+                                    let t = tickersCandidatos[i];
+                                    let colorStr = t.gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
+                                    let signo = t.gapPorcentaje > 0 ? '+' : '';
+                                    let rowId = `row-${t.ticker}-${fechaHoyStr}`;
+                                    let volId = `vol-${t.ticker}-${fechaHoyStr}`;
+                                    
+                                    htmlGlobal += `<tr id="${rowId}">
+                                        <td>${fechaHoyStr}</td>
+                                        <td><strong>${t.ticker}</strong></td>
+                                        <td>$${t.ayer.c.toFixed(2)}</td>
+                                        <td>$${t.hoy.o.toFixed(2)}</td>
+                                        <td style="color: ${colorStr}; font-weight: bold;">${signo}${t.gapPorcentaje.toFixed(2)}%</td>
+                                        <td id="${volId}" style="color: #2962ff; font-weight: bold;">Calculando PM...</td>
+                                    </tr>`;
+                                }
+                                tabla.innerHTML = htmlGlobal;
+
+                                // Fase 2: Descargar Pre-market uno por uno y actualizar la tabla visualmente
+                                for (let i = 0; i < tickersCandidatos.length; i++) {
+                                    let t = tickersCandidatos[i];
+                                    let celdaVol = document.getElementById(`vol-${t.ticker}-${fechaHoyStr}`);
+                                    let fila = document.getElementById(`row-${t.ticker}-${fechaHoyStr}`);
+                                    
+                                    let volPM = await obtenerVolumenPremarket(t.ticker, fechaHoyStr, apiKey);
+                                    
+                                    if (volPM === -2) {
+                                        celdaVol.innerHTML = "Límite API / Error";
+                                        celdaVol.style.color = "#ef5350";
+                                        fila.classList.add("fila-descartada");
+                                    } else {
+                                        if (volPM >= volMin) {
+                                            celdaVol.innerHTML = volPM.toLocaleString();
+                                            celdaVol.style.color = "white"; // Pasa el filtro, se queda brillante
+                                        } else {
+                                            celdaVol.innerHTML = volPM.toLocaleString() + " (Menor al filtro)";
+                                            celdaVol.style.color = "#8a93a6";
+                                            fila.classList.add("fila-descartada"); // Falla el filtro, se apaga visualmente
+                                        }
+                                    }
+                                    // Freno de mano para no saturar la API
+                                    await new Promise(resolve => setTimeout(resolve, 350)); 
                                 }
                             }
                         }
@@ -401,28 +389,20 @@
                     actual.setDate(actual.getDate() + 1);
                 }
 
-                if (!escaneoInterrumpido) {
-                    if(totalEncontrados === 0) {
-                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. Ningún ticker cumplió los filtros de gap y volumen.</td></tr>`;
-                    } else {
-                        tablaBody.innerHTML = filasHtmlGlobales;
-                    }
+                if(htmlGlobal === "") {
+                    tabla.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. Ningún ticker superó la Fase 1.</td></tr>`;
                 }
 
             } catch (error) {
                 console.error(error);
-                if (error.message === "RATE_LIMIT") {
-                    tablaBody.innerHTML = `<tr><td colspan="6" class="error-row">⚠️ Límite de la API alcanzado en la Fase 1. Espera 1 minuto y vuelve a intentar.</td></tr>` + filasHtmlGlobales;
-                } else {
-                    tablaBody.innerHTML = `<tr><td colspan="6" class="error-row">Error al descargar datos. Revisa tu conexión.</td></tr>` + filasHtmlGlobales;
-                }
+                tabla.innerHTML = `<tr><td colspan="6" class="error-row">⚠️ Límite de Massive API alcanzado. Espera 1 minuto y vuelve a intentar.</td></tr>` + htmlGlobal;
             }
             
             btn.disabled = false;
         }
 
         // ==========================================
-        // LÓGICA DE GRÁFICOS
+        // LÓGICA DE GRÁFICOS (MANTENIDA INTACTA)
         // ==========================================
         function crearConfigGrafico(zonaHoraria) {
             return {
@@ -450,7 +430,7 @@
             };
         }
 
-        // ACCIONES (MASSIVE)
+        // ACCIONES
         let fechasMassive = { inicio: "", fin: "" };
         flatpickr("#btn-cal-massive", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-acciones'),
@@ -521,7 +501,7 @@
             } catch (e) { console.error(e); }
         }
 
-        // FUTUROS (DATABENTO)
+        // FUTUROS
         let fechasDatabento = { inicio: "", fin: "" };
         flatpickr("#btn-cal-databento", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-futuros'),
