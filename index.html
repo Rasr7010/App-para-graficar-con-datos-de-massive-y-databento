@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visor Histórico Pro - Real Gaps Edition</title>
+    <title>Visor Histórico Pro - Real Gaps & Pre-Market</title>
     
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -89,7 +89,6 @@
         .btn-icono { display: flex; align-items: center; justify-content: center; padding: 4px 6px; }
         .btn-icono svg { width: 18px; height: 18px; stroke: #d1d4dc; }
         
-        /* ETIQUETAS PARA EL ESCANER */
         .etiqueta-param { color: #8a93a6; font-size: 14px; font-weight: bold; margin-right: -5px;}
     </style>
 </head>
@@ -128,21 +127,24 @@
 
     <div id="vista-scanner" class="vista-app">
         <div class="controles">
-            <button class="btn-accion" id="btn-cal-scanner">Elegir Fechas</button>
+            <button class="btn-accion" id="btn-cal-scanner">Fechas</button>
             
             <span class="etiqueta-param">Gap Mín %:</span>
-            <input type="number" id="gapMin" style="width: 70px;" value="2">
+            <input type="number" id="gapMin" style="width: 60px;" value="2">
             
             <span class="etiqueta-param">Gap Máx %:</span>
-            <input type="number" id="gapMax" style="width: 70px;" value="20">
+            <input type="number" id="gapMax" style="width: 60px;" value="20">
             
             <span class="etiqueta-param">Precio Mín $:</span>
-            <input type="number" id="precioMin" style="width: 70px;" value="1">
+            <input type="number" id="precioMin" style="width: 60px;" value="1">
             
             <span class="etiqueta-param">Precio Máx $:</span>
-            <input type="number" id="precioMax" style="width: 70px;" value="50">
+            <input type="number" id="precioMax" style="width: 60px;" value="50">
+
+            <span class="etiqueta-param">Vol Mín Pre-Market:</span>
+            <input type="number" id="volMin" style="width: 100px;" value="1000000" title="Volumen solo antes del toque de campana">
             
-            <button class="btn-accion" id="btnBuscarGaps" onclick="ejecutarScanner()">BUSCAR GAPS</button>
+            <button class="btn-accion" id="btnBuscarGaps" onclick="ejecutarScanner()">BUSCAR</button>
         </div>
         <div class="tabla-contenedor">
             <table id="tablaGaps">
@@ -150,14 +152,14 @@
                     <tr>
                         <th>Fecha</th>
                         <th>Ticker</th>
-                        <th>Cierre Real Anterior</th>
+                        <th>Cierre Ayer</th>
                         <th>Apertura Hoy</th>
                         <th>Gap Real %</th>
-                        <th>Volumen Hoy</th>
+                        <th>Vol. Pre-Market</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="6" class="status-row">Selecciona un rango de fechas y presiona BUSCAR GAPS.</td></tr>
+                    <tr><td colspan="6" class="status-row">Selecciona un rango de fechas y presiona BUSCAR.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -211,7 +213,7 @@
         }
 
         // ==========================================
-        // LÓGICA DEL ESCÁNER DE GAPS (CON BUSQUEDA DE FERIADOS)
+        // LÓGICA DEL ESCÁNER DE GAPS EN 2 FASES
         // ==========================================
         let fechasScanner = { inicio: "", fin: "" };
         flatpickr("#btn-cal-scanner", {
@@ -242,12 +244,39 @@
             return mapaTickers;
         }
 
+        // FASE 2: EL MOTOR QUIRÚRGICO DEL PRE-MARKET
+        async function obtenerVolumenPremarket(ticker, fecha, apiKey) {
+            const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/minute/${fecha}/${fecha}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
+            try {
+                const res = await fetch(url);
+                if (!res.ok) return 0;
+                const data = await res.json();
+                if (!data.results) return 0;
+
+                let volPM = 0;
+                data.results.forEach(b => {
+                    const fechaNY = new Date(b.t).toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit' });
+                    const [hh, mm] = fechaNY.split(':');
+                    const minTotales = parseInt(hh) * 60 + parseInt(mm);
+                    
+                    // Rango Pre-Market NY: 04:00 (240 mins) a 09:29 (569 mins)
+                    if (minTotales >= 240 && minTotales < 570) {
+                        volPM += b.v;
+                    }
+                });
+                return volPM;
+            } catch (e) {
+                return 0; // Si hay error, devuelve cero para que el filtro lo rechace
+            }
+        }
+
         async function ejecutarScanner() {
             const apiKey = document.getElementById('apiKeyMassive').value;
             const gapMin = parseFloat(document.getElementById('gapMin').value);
             const gapMax = parseFloat(document.getElementById('gapMax').value);
             const precioMin = parseFloat(document.getElementById('precioMin').value);
             const precioMax = parseFloat(document.getElementById('precioMax').value);
+            const volMin = parseFloat(document.getElementById('volMin').value) || 0; 
             const btn = document.getElementById('btnBuscarGaps');
             
             if (!apiKey || !fechasScanner.inicio || !fechasScanner.fin) { alert("Configura API Key y elige las fechas en el calendario."); return; }
@@ -269,39 +298,34 @@
                     if (diaSemana !== 0 && diaSemana !== 6) { 
                         let fechaHoyStr = actual.toISOString().split('T')[0];
 
-                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Descargando datos del ${fechaHoyStr}...</td></tr>` + filasHtmlGlobales;
+                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Fase 1: Analizando el mercado global del ${fechaHoyStr}...</td></tr>` + filasHtmlGlobales;
                         let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
 
-                        // Si el día de hoy no devolvió nada, seguro fue un feriado. Lo saltamos.
                         if (Object.keys(dataHoy).length === 0) {
                             actual.setDate(actual.getDate() + 1);
                             continue;
                         }
 
-                        // LÓGICA DINÁMICA: Buscar hacia atrás hasta encontrar un día con la bolsa abierta
                         let dataAyer = null;
                         let fechaAyerStr = "";
                         let fechaBusqueda = new Date(fechaHoyStr + "T00:00:00");
-                        let intentosRetroceso = 5; // Busca hasta 5 días atrás si hay feriados largos
+                        let intentosRetroceso = 5; 
                         
                         while(intentosRetroceso > 0) {
                             fechaBusqueda.setDate(fechaBusqueda.getDate() - 1);
                             let d = fechaBusqueda.getDay();
                             if (d !== 0 && d !== 6) { 
                                 let fBusqStr = fechaBusqueda.toISOString().split('T')[0];
-                                tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Buscando el cierre válido anterior al ${fechaHoyStr}... revisando ${fBusqStr}</td></tr>` + filasHtmlGlobales;
-                                
                                 let dataTemp = await descargarDiaMercado(fBusqStr, apiKey);
                                 if (Object.keys(dataTemp).length > 0) {
                                     dataAyer = dataTemp;
                                     fechaAyerStr = fBusqStr;
-                                    break; // ¡Encontró mercado abierto! Rompe el ciclo
+                                    break; 
                                 }
                             }
                             intentosRetroceso--;
                         }
 
-                        // Cruzar datos si encontró el cierre previo
                         if (dataAyer) {
                             for (let ticker in dataHoy) {
                                 let hoy = dataHoy[ticker];
@@ -312,43 +336,53 @@
                                     let esGapValido = gapPorcentaje >= gapMin && gapPorcentaje <= gapMax;
 
                                     if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
-                                        totalEncontrados++;
-                                        let colorStr = gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
-                                        let signo = gapPorcentaje > 0 ? '+' : '';
+                                        // PASÓ LA FASE 1. INICIAMOS FASE 2:
+                                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row" style="color: #2962ff;">Fase 2: Calculando volumen Pre-Market para ${ticker}...</td></tr>` + filasHtmlGlobales;
                                         
-                                        filasHtmlGlobales += `<tr>
-                                            <td>${fechaHoyStr}</td>
-                                            <td><strong>${ticker}</strong></td>
-                                            <td>$${ayer.c.toFixed(2)}</td>
-                                            <td>$${hoy.o.toFixed(2)}</td>
-                                            <td style="color: ${colorStr}; font-weight: bold;">${signo}${gapPorcentaje.toFixed(2)}%</td>
-                                            <td>${hoy.v.toLocaleString()}</td>
-                                        </tr>`;
+                                        let volPremarket = await obtenerVolumenPremarket(ticker, fechaHoyStr, apiKey);
+
+                                        if (volPremarket >= volMin) {
+                                            totalEncontrados++;
+                                            let colorStr = gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
+                                            let signo = gapPorcentaje > 0 ? '+' : '';
+                                            
+                                            filasHtmlGlobales += `<tr>
+                                                <td>${fechaHoyStr}</td>
+                                                <td><strong>${ticker}</strong></td>
+                                                <td>$${ayer.c.toFixed(2)}</td>
+                                                <td>$${hoy.o.toFixed(2)}</td>
+                                                <td style="color: ${colorStr}; font-weight: bold;">${signo}${gapPorcentaje.toFixed(2)}%</td>
+                                                <td>${volPremarket.toLocaleString()}</td>
+                                            </tr>`;
+                                            
+                                            // Actualiza la tabla en vivo con el hallazgo
+                                            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneando mercado...</td></tr>` + filasHtmlGlobales;
+                                        }
                                     }
                                 }
                             }
                         }
-                        await new Promise(resolve => setTimeout(resolve, 300)); // Cuidar los límites de la API
+                        await new Promise(resolve => setTimeout(resolve, 300)); 
                     }
                     actual.setDate(actual.getDate() + 1);
                 }
 
                 if(totalEncontrados === 0) {
-                    tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. No se encontraron gaps en ese rango.</td></tr>`;
+                    tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. Ningún ticker superó la Fase 2 (Volumen Pre-Market).</td></tr>`;
                 } else {
                     tablaBody.innerHTML = filasHtmlGlobales;
                 }
 
             } catch (error) {
                 console.error(error);
-                tablaBody.innerHTML = `<tr><td colspan="6" style="color: #ef5350; text-align: center;">Error al descargar datos. Revisa el límite de tu API.</td></tr>` + filasHtmlGlobales;
+                tablaBody.innerHTML = `<tr><td colspan="6" style="color: #ef5350; text-align: center;">Error al descargar datos. Revisa tu conexión o el límite de tu API.</td></tr>` + filasHtmlGlobales;
             }
             
             btn.disabled = false;
         }
 
         // ==========================================
-        // LÓGICA DE GRÁFICOS (ACCIONES Y FUTUROS)
+        // LÓGICA DE GRÁFICOS
         // ==========================================
         function crearConfigGrafico(zonaHoraria) {
             return {
@@ -447,7 +481,7 @@
             } catch (e) { console.error(e); }
         }
 
-        // FUTUROS (DATABENTO - NETLIFY)
+        // FUTUROS (DATABENTO)
         let fechasDatabento = { inicio: "", fin: "" };
         flatpickr("#btn-cal-databento", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-futuros'),
