@@ -211,7 +211,7 @@
         }
 
         // ==========================================
-        // LÓGICA DEL ESCÁNER DE GAPS REALES
+        // LÓGICA DEL ESCÁNER DE GAPS REALES (CORREGIDA)
         // ==========================================
         let fechasScanner = { inicio: "", fin: "" };
         flatpickr("#btn-cal-scanner", {
@@ -264,7 +264,7 @@
             localStorage.setItem('massiveKey', apiKey);
 
             const tablaBody = document.querySelector("#tablaGaps tbody");
-            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Iniciando escaneo real de Cierres vs Aperturas...</td></tr>`;
+            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Iniciando escaneo exacto de gaps...</td></tr>`;
             btn.disabled = true;
 
             let actual = new Date(fechasScanner.inicio + "T00:00:00");
@@ -280,7 +280,7 @@
                         let fechaHoyStr = actual.toISOString().split('T')[0];
                         let fechaAyerStr = obtenerDiaHabilAnterior(fechaHoyStr);
 
-                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Descargando datos del ${fechaHoyStr}... (Cierre previo: ${fechaAyerStr})</td></tr>` + filasHtmlGlobales;
+                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Descargando datos del ${fechaHoyStr}...</td></tr>` + filasHtmlGlobales;
 
                         let dataAyer = await descargarDiaMercado(fechaAyerStr, apiKey);
                         let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
@@ -290,10 +290,11 @@
                             let ayer = dataAyer[ticker];
 
                             if (ayer && ayer.c && hoy && hoy.o) {
+                                // CÁLCULO EXACTO DIRECCIONAL
                                 let gapPorcentaje = ((hoy.o / ayer.c) - 1) * 100;
-                                let esGapValido = gapPorcentaje >= 0 ? 
-                                    (gapPorcentaje >= gapMin && gapPorcentaje <= gapMax) : 
-                                    (gapPorcentaje <= -gapMin && gapPorcentaje >= -gapMax); 
+                                
+                                // FILTRO ESTRICTO: Solo lo que está matemáticamente entre el Mínimo y el Máximo
+                                let esGapValido = gapPorcentaje >= gapMin && gapPorcentaje <= gapMax;
 
                                 if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
                                     totalEncontrados++;
@@ -317,14 +318,14 @@
                 }
 
                 if(totalEncontrados === 0) {
-                    tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. No se encontraron tickers que cumplan estos filtros.</td></tr>`;
+                    tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. No se encontraron gaps en ese rango exacto.</td></tr>`;
                 } else {
                     tablaBody.innerHTML = filasHtmlGlobales;
                 }
 
             } catch (error) {
                 console.error(error);
-                tablaBody.innerHTML = `<tr><td colspan="6" style="color: #ef5350; text-align: center;">Error al descargar datos. Es posible que hayas alcanzado el límite de tu API de Massive/Polygon. Intenta con un rango de fechas más pequeño.</td></tr>` + filasHtmlGlobales;
+                tablaBody.innerHTML = `<tr><td colspan="6" style="color: #ef5350; text-align: center;">Error al descargar datos de Polygon/Massive. Intenta con un rango más pequeño.</td></tr>` + filasHtmlGlobales;
             }
             
             btn.disabled = false;
