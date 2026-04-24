@@ -65,6 +65,7 @@
         td { padding: 12px; border-bottom: 1px solid #2b313f; }
         tr:hover { background-color: rgba(41, 98, 255, 0.1); }
         .status-row { text-align: center; font-style: italic; color: #8a93a6; }
+        .error-row { text-align: center; font-weight: bold; color: #ef5350; background-color: rgba(239, 83, 80, 0.1); }
 
         .floating-toolbar {
             position: absolute; top: 15px; left: 15px; z-index: 20; 
@@ -102,7 +103,7 @@
 
     <div id="vista-acciones" class="vista-app activa">
         <div class="controles">
-            <input type="password" id="apiKeyMassive" placeholder="API Key Massive (Polygon)" style="width: 250px;">
+            <input type="password" id="apiKeyMassive" placeholder="API Key Massive" style="width: 250px;">
         </div>
         <div id="contenedor-acciones" class="grafico-contenedor">
             <div class="floating-toolbar">
@@ -190,7 +191,6 @@
     </div>
 
     <script>
-        // PERSISTENCIA DE API KEYS
         document.addEventListener('DOMContentLoaded', () => {
             const massiveKey = localStorage.getItem('massiveKey');
             const bentoKey = localStorage.getItem('bentoKey');
@@ -231,11 +231,22 @@
         async function descargarDiaMercado(fechaStr, apiKey) {
             if (dataCache[fechaStr]) return dataCache[fechaStr]; 
             
-            const url = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${fechaStr}?adjusted=true&apiKey=${apiKey}`;
+            const url = `https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/${fechaStr}?adjusted=true&apiKey=${apiKey}`;
             const res = await fetch(url);
-            if (!res.ok) throw new Error("Error API / Límite alcanzado");
+            
+            if (!res.ok) {
+                if (res.status === 429) throw new Error("RATE_LIMIT");
+                throw new Error("API_ERROR");
+            }
             
             const data = await res.json();
+            
+            // Detección de error silencioso de Massive
+            if (data.status && data.status.toUpperCase() === "ERROR") {
+                if (data.error && data.error.toLowerCase().includes("requests")) throw new Error("RATE_LIMIT");
+                throw new Error("API_ERROR");
+            }
+
             const mapaTickers = {};
             if (data.results) {
                 data.results.forEach(stock => mapaTickers[stock.T] = stock);
@@ -244,34 +255,46 @@
             return mapaTickers;
         }
 
-        // FASE 2: EL MOTOR QUIRÚRGICO DEL PRE-MARKET
+        // FASE 2: MOTOR QUIRÚRGICO DEL PRE-MARKET (CON DETECCIÓN DE BLOQUEOS)
         async function obtenerVolumenPremarket(ticker, fecha, apiKey) {
-            const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/minute/${fecha}/${fecha}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
+            const url = `https://api.massive.com/v2/aggs/ticker/${ticker}/range/1/minute/${fecha}/${fecha}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
             try {
                 const res = await fetch(url);
+                if (res.status === 429) return -2; // Código de Bloqueo por Velocidad
+                
                 if (!res.ok) return 0;
                 const data = await res.json();
+                
+                // Detección de error silencioso
+                if (data.status && data.status.toUpperCase() === "ERROR") {
+                    if (data.error && data.error.toLowerCase().includes("requests")) return -2; // Bloqueo silencioso
+                    return 0; 
+                }
+
                 if (!data.results) return 0;
 
                 let volPM = 0;
                 data.results.forEach(b => {
-                    const fechaNY = new Date(b.t).toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit' });
-                    const [hh, mm] = fechaNY.split(':');
-                    const minTotales = parseInt(hh) * 60 + parseInt(mm);
+                    const f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: 'numeric', minute: 'numeric' });
+                    const p = {};
+                    f.formatToParts(new Date(b.t)).forEach(part => p[part.type] = part.value);
                     
-                    // Rango Pre-Market NY: 04:00 (240 mins) a 09:29 (569 mins)
-                    if (minTotales >= 240 && minTotales < 570) {
+                    const hh = parseInt(p.hour, 10) === 24 ? 0 : parseInt(p.hour, 10);
+                    const mm = parseInt(p.minute, 10);
+                    const minTotales = hh * 60 + mm;
+                    
+                    if (minTotales >= 240 && minTotales < 570) { // 04:00 a 09:29
                         volPM += b.v;
                     }
                 });
                 return volPM;
             } catch (e) {
-                return 0; // Si hay error, devuelve cero para que el filtro lo rechace
+                return 0; 
             }
         }
 
         async function ejecutarScanner() {
-            const apiKey = document.getElementById('apiKeyMassive').value;
+            const apiKey = document.getElementById('apiKeyMassive').value.trim();
             const gapMin = parseFloat(document.getElementById('gapMin').value);
             const gapMax = parseFloat(document.getElementById('gapMax').value);
             const precioMin = parseFloat(document.getElementById('precioMin').value);
@@ -290,9 +313,10 @@
             let limite = new Date(fechasScanner.fin + "T00:00:00");
             let filasHtmlGlobales = "";
             let totalEncontrados = 0;
+            let escaneoInterrumpido = false;
 
             try {
-                while(actual <= limite) {
+                while(actual <= limite && !escaneoInterrumpido) {
                     let diaSemana = actual.getDay();
                     
                     if (diaSemana !== 0 && diaSemana !== 6) { 
@@ -328,6 +352,8 @@
 
                         if (dataAyer) {
                             for (let ticker in dataHoy) {
+                                if (escaneoInterrumpido) break;
+
                                 let hoy = dataHoy[ticker];
                                 let ayer = dataAyer[ticker];
 
@@ -336,10 +362,17 @@
                                     let esGapValido = gapPorcentaje >= gapMin && gapPorcentaje <= gapMax;
 
                                     if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
-                                        // PASÓ LA FASE 1. INICIAMOS FASE 2:
-                                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row" style="color: #2962ff;">Fase 2: Calculando volumen Pre-Market para ${ticker}...</td></tr>` + filasHtmlGlobales;
+                                        
+                                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row" style="color: #2962ff;">Fase 2: Sumando velas Pre-Market para ${ticker}...</td></tr>` + filasHtmlGlobales;
                                         
                                         let volPremarket = await obtenerVolumenPremarket(ticker, fechaHoyStr, apiKey);
+
+                                        // FRENO DE MANO AUTOMÁTICO PARA PROTEGER LA API
+                                        while (volPremarket === -2) {
+                                            tablaBody.innerHTML = `<tr><td colspan="6" class="status-row" style="color: #ff9800; font-weight: bold;">⏳ Límite de API alcanzado. Pausa automática de 61s para continuar con ${ticker} sin perder datos...</td></tr>` + filasHtmlGlobales;
+                                            await new Promise(resolve => setTimeout(resolve, 61000)); // Espera 61 segundos
+                                            volPremarket = await obtenerVolumenPremarket(ticker, fechaHoyStr, apiKey); // Reintenta el mismo ticker
+                                        }
 
                                         if (volPremarket >= volMin) {
                                             totalEncontrados++;
@@ -355,27 +388,34 @@
                                                 <td>${volPremarket.toLocaleString()}</td>
                                             </tr>`;
                                             
-                                            // Actualiza la tabla en vivo con el hallazgo
                                             tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneando mercado...</td></tr>` + filasHtmlGlobales;
                                         }
+
+                                        // Micro-pausa de 250ms para no disparar las alarmas de DDoS de la API
+                                        await new Promise(resolve => setTimeout(resolve, 250)); 
                                     }
                                 }
                             }
                         }
-                        await new Promise(resolve => setTimeout(resolve, 300)); 
                     }
                     actual.setDate(actual.getDate() + 1);
                 }
 
-                if(totalEncontrados === 0) {
-                    tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. Ningún ticker superó la Fase 2 (Volumen Pre-Market).</td></tr>`;
-                } else {
-                    tablaBody.innerHTML = filasHtmlGlobales;
+                if (!escaneoInterrumpido) {
+                    if(totalEncontrados === 0) {
+                        tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. Ningún ticker cumplió los filtros de gap y volumen.</td></tr>`;
+                    } else {
+                        tablaBody.innerHTML = filasHtmlGlobales;
+                    }
                 }
 
             } catch (error) {
                 console.error(error);
-                tablaBody.innerHTML = `<tr><td colspan="6" style="color: #ef5350; text-align: center;">Error al descargar datos. Revisa tu conexión o el límite de tu API.</td></tr>` + filasHtmlGlobales;
+                if (error.message === "RATE_LIMIT") {
+                    tablaBody.innerHTML = `<tr><td colspan="6" class="error-row">⚠️ Límite de la API alcanzado en la Fase 1. Espera 1 minuto y vuelve a intentar.</td></tr>` + filasHtmlGlobales;
+                } else {
+                    tablaBody.innerHTML = `<tr><td colspan="6" class="error-row">Error al descargar datos. Revisa tu conexión.</td></tr>` + filasHtmlGlobales;
+                }
             }
             
             btn.disabled = false;
@@ -443,7 +483,7 @@
             const [mult, ran] = document.getElementById('tempMassive').value.split('/'); 
             if (!key || !fechasMassive.inicio) return;
 
-            const url = `https://api.polygon.io/v2/aggs/ticker/${tk}/range/${mult}/${ran}/${fechasMassive.inicio}/${fechasMassive.fin}?adjusted=true&sort=asc&limit=50000&apiKey=${key}`;
+            const url = `https://api.massive.com/v2/aggs/ticker/${tk}/range/${mult}/${ran}/${fechasMassive.inicio}/${fechasMassive.fin}?adjusted=true&sort=asc&limit=50000&apiKey=${key}`;
             try {
                 const res = await fetch(url); const data = await res.json();
                 if (data.results && data.results.length > 0) {
