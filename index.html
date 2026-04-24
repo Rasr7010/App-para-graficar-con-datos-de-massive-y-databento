@@ -225,7 +225,7 @@
         }
 
         // ==========================================
-        // MASSIVE LOGIC
+        // MASSIVE LOGIC (ACCIONES) - AHORA CON VWAP
         // ==========================================
         let fechasMassive = { inicio: "", fin: "" };
         flatpickr("#btn-cal-massive", {
@@ -242,6 +242,10 @@
         const graficoMassive = LightweightCharts.createChart(document.getElementById('contenedor-acciones'), crearConfigGrafico('America/New_York'));
         const fondoMassive = graficoMassive.addAreaSeries({ priceScaleId: 'bg_scale', lineVisible: false, topColor: 'rgba(42, 46, 57, 0.6)', bottomColor: 'rgba(42, 46, 57, 0.6)', lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, lineType: 1, autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }) });
         graficoMassive.priceScale('bg_scale').applyOptions({ visible: false, scaleMargins: { top: 0, bottom: 0 } });
+        
+        // CREADA LA SERIE PARA EL VWAP (Naranja brillante)
+        const vwapMassive = graficoMassive.addLineSeries({ color: '#ff9800', lineWidth: 2, crosshairMarkerVisible: false, priceLineVisible: false });
+        
         const velasMassive = graficoMassive.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderDownColor: '#ef5350', borderUpColor: '#26a69a', wickDownColor: '#ef5350', wickUpColor: '#26a69a' });
         const volMassive = graficoMassive.addHistogramSeries({ priceScaleId: 'vol_scale', priceFormat: { type: 'volume' } });
         graficoMassive.priceScale('vol_scale').applyOptions({ visible: false, scaleMargins: { top: 0.7, bottom: 0 } });
@@ -269,8 +273,18 @@
                 const datos = await respuesta.json();
 
                 if (datos.results && datos.results.length > 0) {
-                    const velasFormateadas = []; const volumenFormateado = []; const fondoFormateado = []; const estadosFondoRaw = [];
-                    let diaActual = null; const esDiario = (multiplicador === '1' && rango === 'day');
+                    const velasFormateadas = []; 
+                    const volumenFormateado = []; 
+                    const fondoFormateado = []; 
+                    const estadosFondoRaw = [];
+                    const vwapFormateado = []; // Arreglo limpio para el VWAP
+                    
+                    const esDiario = (multiplicador === '1' && rango === 'day');
+                    
+                    // Variables para calcular el VWAP diario
+                    let sumVolPrice = 0;
+                    let sumVol = 0;
+                    let diaActualVWAP = null;
 
                     datos.results.forEach(barra => {
                         const tiempoUnix = barra.t / 1000;
@@ -288,8 +302,20 @@
                             if (!esMercadoRegular) esHorarioExtendido = true;
                         }
 
+                        // MATEMÁTICA DEL VWAP
+                        if (diaActualVWAP !== fechaParte) {
+                            sumVolPrice = 0;
+                            sumVol = 0;
+                            diaActualVWAP = fechaParte;
+                        }
+                        const precioTipico = (barra.h + barra.l + barra.c) / 3;
+                        sumVolPrice += (precioTipico * barra.v);
+                        sumVol += barra.v;
+                        const vwapActual = sumVolPrice / sumVol;
+
                         velasFormateadas.push({ time: tiempoUnix, open: barra.o, high: barra.h, low: barra.l, close: barra.c });
                         volumenFormateado.push({ time: tiempoUnix, value: barra.v, color: colorVolumen });
+                        vwapFormateado.push({ time: tiempoUnix, value: vwapActual });
                         estadosFondoRaw.push({ time: tiempoUnix, extendido: esHorarioExtendido });
                     });
 
@@ -304,6 +330,7 @@
                     }
 
                     fondoMassive.setData(fondoFormateado);
+                    vwapMassive.setData(vwapFormateado); // Inyectamos el VWAP al gráfico
                     velasMassive.setData(velasFormateadas);
                     volMassive.setData(volumenFormateado);
                     graficoMassive.timeScale().fitContent(); 
@@ -312,7 +339,7 @@
         }
 
         // ==========================================
-        // DATABENTO LOGIC (VIA NETLIFY)
+        // DATABENTO LOGIC (VIA NETLIFY) - EN PAUSA
         // ==========================================
         let fechasDatabento = { inicio: "", fin: "" };
         flatpickr("#btn-cal-databento", {
@@ -349,50 +376,40 @@
             const baseSymbol = tickerRaw.split('.')[0]; 
             const dataset = mapaMercados[baseSymbol] || 'GLBX.MDP3'; 
 
-            // LA MAGIA: Llamada a tu servidor local de Netlify
             const url = `/.netlify/functions/databento?ticker=${encodeURIComponent(tickerRaw)}&start=${fechasDatabento.inicio}&end=${fechasDatabento.fin}&schema=${schema}&dataset=${dataset}&apiKey=${encodeURIComponent(apiKey)}`;
 
             try {
                 const respuesta = await fetch(url);
-
                 if (!respuesta.ok) {
                     const errorTxt = await respuesta.text();
                     alert(`Error de Databento: ${errorTxt}`);
                     return;
                 }
-
                 const textoCrudo = await respuesta.text();
                 if (!textoCrudo.trim()) {
                     alert("Databento no encontró operaciones para este contrato en estas fechas.");
                     return;
                 }
-
                 const lineas = textoCrudo.trim().split('\n');
                 const velasFormateadas = [];
                 const volumenFormateado = [];
-
                 lineas.forEach(linea => {
                     if (!linea) return;
                     const barra = JSON.parse(linea);
-
                     const tiempoUnix = Math.floor(barra.ts_event / 1000000000);
                     const o = barra.open / 1000000000;
                     const h = barra.high / 1000000000;
                     const l = barra.low / 1000000000;
                     const c = barra.close / 1000000000;
                     const v = barra.volume;
-
                     velasFormateadas.push({ time: tiempoUnix, open: o, high: h, low: l, close: c });
-                    
                     const esAlcista = c >= o;
                     const colorVolumen = esAlcista ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)';
                     volumenFormateado.push({ time: tiempoUnix, value: v, color: colorVolumen });
                 });
-
                 velasDatabento.setData(velasFormateadas);
                 volDatabento.setData(volumenFormateado);
                 graficoDatabento.timeScale().fitContent();
-
             } catch (error) {
                 console.error("Detalle del error:", error);
                 alert("Error de red.");
