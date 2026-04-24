@@ -36,7 +36,7 @@
 
         .controles {
             background-color: #1e222d; padding: 15px; border-radius: 8px;
-            margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap;
             align-items: center; justify-content: center; width: 100%; max-width: 1200px;
         }
         input, select {
@@ -88,6 +88,9 @@
         .floating-toolbar select option { background-color: #1e222d; color: white; }
         .btn-icono { display: flex; align-items: center; justify-content: center; padding: 4px 6px; }
         .btn-icono svg { width: 18px; height: 18px; stroke: #d1d4dc; }
+        
+        /* ETIQUETAS PARA EL ESCANER */
+        .etiqueta-param { color: #8a93a6; font-size: 14px; font-weight: bold; margin-right: -5px;}
     </style>
 </head>
 <body>
@@ -126,10 +129,19 @@
     <div id="vista-scanner" class="vista-app">
         <div class="controles">
             <button class="btn-accion" id="btn-cal-scanner">Elegir Fechas</button>
-            <input type="number" id="gapMin" placeholder="Gap Min %" style="width: 90px;" value="2">
-            <input type="number" id="gapMax" placeholder="Gap Max %" style="width: 90px;" value="20">
-            <input type="number" id="precioMin" placeholder="Precio Min $" style="width: 90px;" value="1">
-            <input type="number" id="precioMax" placeholder="Precio Max $" style="width: 90px;" value="50">
+            
+            <span class="etiqueta-param">Gap Mín %:</span>
+            <input type="number" id="gapMin" style="width: 70px;" value="2">
+            
+            <span class="etiqueta-param">Gap Máx %:</span>
+            <input type="number" id="gapMax" style="width: 70px;" value="20">
+            
+            <span class="etiqueta-param">Precio Mín $:</span>
+            <input type="number" id="precioMin" style="width: 70px;" value="1">
+            
+            <span class="etiqueta-param">Precio Máx $:</span>
+            <input type="number" id="precioMax" style="width: 70px;" value="50">
+            
             <button class="btn-accion" id="btnBuscarGaps" onclick="ejecutarScanner()">BUSCAR GAPS</button>
         </div>
         <div class="tabla-contenedor">
@@ -212,22 +224,20 @@
             }
         });
 
-        // Motor de tiempo: Retrocede días saltando fines de semana
         function obtenerDiaHabilAnterior(fechaStr) {
             let d = new Date(fechaStr + "T00:00:00");
-            let diaSemana = d.getDay(); // 0=Dom, 1=Lun, 6=Sab
+            let diaSemana = d.getDay(); 
             let diff = 1;
-            if (diaSemana === 1) diff = 3; // Lunes retrocede al Viernes
-            if (diaSemana === 0) diff = 2; // Domingo retrocede al Viernes
+            if (diaSemana === 1) diff = 3; 
+            if (diaSemana === 0) diff = 2; 
             d.setDate(d.getDate() - diff);
             return d.toISOString().split('T')[0];
         }
 
-        // Memoria Caché para no repetir descargas de la API
         const dataCache = {}; 
         
         async function descargarDiaMercado(fechaStr, apiKey) {
-            if (dataCache[fechaStr]) return dataCache[fechaStr]; // Usar caché si existe
+            if (dataCache[fechaStr]) return dataCache[fechaStr]; 
             
             const url = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${fechaStr}?adjusted=true&apiKey=${apiKey}`;
             const res = await fetch(url);
@@ -238,7 +248,7 @@
             if (data.results) {
                 data.results.forEach(stock => mapaTickers[stock.T] = stock);
             }
-            dataCache[fechaStr] = mapaTickers; // Guardar en caché
+            dataCache[fechaStr] = mapaTickers; 
             return mapaTickers;
         }
 
@@ -263,34 +273,27 @@
             let totalEncontrados = 0;
 
             try {
-                // Iterar día por día en el rango elegido
                 while(actual <= limite) {
                     let diaSemana = actual.getDay();
                     
-                    // Solo analizamos días de lunes a viernes (1 a 5)
                     if (diaSemana !== 0 && diaSemana !== 6) { 
                         let fechaHoyStr = actual.toISOString().split('T')[0];
                         let fechaAyerStr = obtenerDiaHabilAnterior(fechaHoyStr);
 
-                        // Imprimir estado en pantalla
                         tablaBody.innerHTML = `<tr><td colspan="6" class="status-row">Descargando datos del ${fechaHoyStr}... (Cierre previo: ${fechaAyerStr})</td></tr>` + filasHtmlGlobales;
 
-                        // Descargar bloque de HOY y bloque de AYER (La caché evita dobles descargas)
                         let dataAyer = await descargarDiaMercado(fechaAyerStr, apiKey);
                         let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
 
-                        // Cruzar los datos para encontrar Gaps
                         for (let ticker in dataHoy) {
                             let hoy = dataHoy[ticker];
                             let ayer = dataAyer[ticker];
 
-                            // Validar que el ticker existió ayer y hoy
                             if (ayer && ayer.c && hoy && hoy.o) {
-                                // FÓRMULA DEL GAP REAL
                                 let gapPorcentaje = ((hoy.o / ayer.c) - 1) * 100;
                                 let esGapValido = gapPorcentaje >= 0 ? 
                                     (gapPorcentaje >= gapMin && gapPorcentaje <= gapMax) : 
-                                    (gapPorcentaje <= -gapMin && gapPorcentaje >= -gapMax); // Funciona para gaps alcistas y bajistas
+                                    (gapPorcentaje <= -gapMin && gapPorcentaje >= -gapMax); 
 
                                 if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
                                     totalEncontrados++;
@@ -308,7 +311,6 @@
                                 }
                             }
                         }
-                        // Pequeña pausa para no saturar la API
                         await new Promise(resolve => setTimeout(resolve, 300)); 
                     }
                     actual.setDate(actual.getDate() + 1);
