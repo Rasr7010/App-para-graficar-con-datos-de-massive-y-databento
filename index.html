@@ -49,6 +49,10 @@
         }
         .btn-accion:hover { background-color: #1e4bd8; }
         .btn-accion:disabled { background-color: #555; cursor: not-allowed; }
+        
+        /* Botón especial para enviar al gráfico */
+        .btn-enviar { background-color: #ff9800; display: none; }
+        .btn-enviar:hover { background-color: #e68a00; }
 
         .grafico-contenedor {
             width: 100%; max-width: 1200px; flex-grow: 1; min-height: 400px;
@@ -96,8 +100,29 @@
         .floating-toolbar select option { background-color: #1e222d; color: white; }
         .btn-icono { display: flex; align-items: center; justify-content: center; padding: 4px 6px; }
         .btn-icono svg { width: 18px; height: 18px; stroke: #d1d4dc; }
+        .btn-icono:hover { background-color: rgba(255,255,255,0.1); }
         
         .etiqueta-param { color: #8a93a6; font-size: 14px; font-weight: bold; margin-right: -5px;}
+
+        /* ESTILOS DEL PANEL DROPDOWN EN EL GRÁFICO */
+        .panel-gaps-flotante {
+            position: absolute; top: 55px; left: 15px; z-index: 30;
+            background-color: rgba(30, 34, 45, 0.95); border: 1px solid #2b313f;
+            border-radius: 6px; width: 280px; max-height: 350px; overflow-y: auto;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5); display: none; flex-direction: column;
+        }
+        .panel-gaps-flotante.activo { display: flex; }
+        .item-gap-flotante {
+            padding: 10px 15px; border-bottom: 1px solid #2b313f; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: background 0.2s;
+        }
+        .item-gap-flotante:hover { background-color: rgba(41, 98, 255, 0.2); }
+        .item-gap-flotante:last-child { border-bottom: none; }
+        .item-ticker { font-weight: bold; font-size: 14px; color: white; }
+        .item-fecha { font-size: 11px; color: #8a93a6; margin-left: 8px; }
+        .item-valor { font-weight: bold; font-size: 13px; }
+        .panel-header { padding: 10px 15px; background-color: #2b313f; font-weight: bold; font-size: 12px; color: #d1d4dc; position: sticky; top: 0; }
     </style>
 </head>
 <body>
@@ -114,6 +139,10 @@
         </div>
         <div id="contenedor-acciones" class="grafico-contenedor">
             <div class="floating-toolbar">
+                <button class="btn-icono" onclick="togglePanelGaps()" title="Ver lista de Gaps del Escáner">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                </button>
+                
                 <input type="text" id="tickerMassive" value="TSLA" onkeypress="if(event.key === 'Enter') cargarDatosMassive()">
                 <select id="tempMassive" onchange="cargarDatosMassive()">
                     <option value="1/minute">1m</option>
@@ -125,6 +154,14 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                 </button>
             </div>
+
+            <div id="panelGaps" class="panel-gaps-flotante">
+                <div class="panel-header">Gaps Enviados desde el Escáner</div>
+                <div id="contenidoPanelGaps">
+                    <div style="padding: 15px; text-align: center; color: #8a93a6; font-size: 13px;">No hay datos. Envía una lista desde el Escáner.</div>
+                </div>
+            </div>
+
             <div class="floating-fullscreen">
                 <button class="btn-icono" onclick="pantallaCompleta('contenedor-acciones')">
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
@@ -149,10 +186,11 @@
             <span class="etiqueta-param">Precio Máx $:</span>
             <input type="number" id="precioMax" style="width: 60px;" value="50">
 
-            <span class="etiqueta-param">Vol Mín Pre-Market:</span>
-            <input type="number" id="volMin" style="width: 100px;" value="1000000">
+            <span class="etiqueta-param">Vol Mín PM:</span>
+            <input type="number" id="volMin" style="width: 90px;" value="1000000">
             
             <button class="btn-accion" id="btnBuscarGaps" onclick="ejecutarScanner()">BUSCAR</button>
+            <button class="btn-accion btn-enviar" id="btnEnviarGrafico" onclick="enviarAlGrafico()">Enviar lista al gráfico</button>
         </div>
         
         <div id="estadoEscaner" class="status-container">Listo para escanear.</div>
@@ -202,6 +240,9 @@
     </div>
 
     <script>
+        // VARIABLE GLOBAL PARA ALMACENAR GAPS ENCONTRADOS
+        let gapsParaGrafico = [];
+
         document.addEventListener('DOMContentLoaded', () => {
             const massiveKey = localStorage.getItem('massiveKey');
             const bentoKey = localStorage.getItem('bentoKey');
@@ -215,6 +256,11 @@
             document.querySelectorAll('.vista-app').forEach(v => v.classList.remove('activa'));
             document.getElementById(`vista-${pestana}`).classList.add('activa');
             window.dispatchEvent(new Event('resize'));
+            
+            // Cerrar el panel flotante si cambiamos de pestaña
+            if(pestana !== 'acciones') {
+                document.getElementById('panelGaps').classList.remove('activo');
+            }
         }
 
         function pantallaCompleta(idContenedor) {
@@ -224,7 +270,58 @@
         }
 
         // ==========================================
-        // ESCÁNER DE GAPS: MOTOR PRO (SOLO RESULTADOS REALES)
+        // COMUNICACIÓN ESCÁNER -> GRÁFICO
+        // ==========================================
+        function togglePanelGaps() {
+            document.getElementById('panelGaps').classList.toggle('activo');
+        }
+
+        function enviarAlGrafico() {
+            if (gapsParaGrafico.length === 0) return;
+            
+            let htmlPanel = '';
+            gapsParaGrafico.forEach(gap => {
+                let colorStr = gap.porcentaje >= 0 ? '#26a69a' : '#ef5350';
+                let signo = gap.porcentaje > 0 ? '+' : '';
+                
+                htmlPanel += `<div class="item-gap-flotante" onclick="abrirGapEnGrafico('${gap.ticker}', '${gap.fecha}')">
+                    <div>
+                        <span class="item-ticker">${gap.ticker}</span>
+                        <span class="item-fecha">${gap.fecha}</span>
+                    </div>
+                    <div class="item-valor" style="color: ${colorStr};">${signo}${gap.porcentaje.toFixed(2)}%</div>
+                </div>`;
+            });
+            
+            document.getElementById('contenidoPanelGaps').innerHTML = htmlPanel;
+            cambiarPestana('acciones');
+            document.getElementById('panelGaps').classList.add('activo');
+        }
+
+        function abrirGapEnGrafico(ticker, fecha) {
+            // 1. Asignar Ticker
+            document.getElementById('tickerMassive').value = ticker;
+            
+            // 2. Calcular Rango Estratégico (2 días antes, 2 días después)
+            let fechaGap = new Date(fecha + "T00:00:00");
+            let dInicio = new Date(fechaGap); dInicio.setDate(dInicio.getDate() - 2);
+            let dFin = new Date(fechaGap); dFin.setDate(dFin.getDate() + 2);
+            
+            fechasMassive.inicio = dInicio.toISOString().split('T')[0];
+            fechasMassive.fin = dFin.toISOString().split('T')[0];
+            
+            // 3. Actualizar la interfaz del calendario de Massive
+            fpMassive.setDate([fechasMassive.inicio, fechasMassive.fin]);
+            
+            // 4. Descargar y dibujar
+            cargarDatosMassive();
+            
+            // 5. Cerrar panel flotante
+            document.getElementById('panelGaps').classList.remove('activo');
+        }
+
+        // ==========================================
+        // ESCÁNER DE GAPS: MOTOR PRO UNLEASHED
         // ==========================================
         let fechasScanner = { inicio: "", fin: "" };
         flatpickr("#btn-cal-scanner", {
@@ -277,7 +374,7 @@
                     if (hh === 24) hh = 0;
                     
                     const minTotales = hh * 60 + mm;
-                    if (minTotales >= 240 && minTotales < 570) volPM += b.v; // 04:00 AM a 09:29 AM
+                    if (minTotales >= 240 && minTotales < 570) volPM += b.v;
                 });
                 return volPM;
             } catch (e) {
@@ -285,7 +382,6 @@
             }
         }
 
-        // NUEVA FASE 3: Obtener el nombre de la bolsa (Exchange)
         async function obtenerExchange(ticker, apiKey) {
             const url = `https://api.massive.com/v3/reference/tickers/${ticker}?apiKey=${apiKey}`;
             try {
@@ -315,14 +411,17 @@
             const precioMax = parseFloat(document.getElementById('precioMax').value);
             const volMin = parseFloat(document.getElementById('volMin').value) || 0; 
             const btn = document.getElementById('btnBuscarGaps');
+            const btnEnviar = document.getElementById('btnEnviarGrafico');
             const tabla = document.getElementById('cuerpoTablaGaps');
             const statusBar = document.getElementById('estadoEscaner');
             
             if (!apiKey || !fechasScanner.inicio || !fechasScanner.fin) { alert("Configura API Key y elige las fechas."); return; }
             localStorage.setItem('massiveKey', apiKey);
 
-            tabla.innerHTML = ""; // Limpiamos la tabla
+            tabla.innerHTML = ""; 
             btn.disabled = true;
+            btnEnviar.style.display = 'none';
+            gapsParaGrafico = []; // Reiniciamos la memoria global
             let totalEncontradosGlobales = 0;
 
             let actual = new Date(fechasScanner.inicio + "T00:00:00");
@@ -378,11 +477,17 @@
                                         
                                         let volPM = await obtenerVolumenPremarket(t.ticker, fechaHoyStr, apiKey);
                                         
-                                        // SI PASA EL FILTRO, LO INYECTAMOS EN LA TABLA
                                         if (volPM >= volMin) {
                                             totalEncontradosGlobales++;
                                             statusBar.innerText = `[${fechaHoyStr}] Fase 3: Obteniendo Exchange para ${t.ticker}...`;
                                             let nombreExchange = await obtenerExchange(t.ticker, apiKey);
+                                            
+                                            // GUARDAMOS EL GANADOR EN LA MEMORIA GLOBAL PARA EL GRÁFICO
+                                            gapsParaGrafico.push({
+                                                fecha: fechaHoyStr,
+                                                ticker: t.ticker,
+                                                porcentaje: t.gapPorcentaje
+                                            });
                                             
                                             let colorStr = t.gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
                                             let signo = t.gapPorcentaje > 0 ? '+' : '';
@@ -409,8 +514,12 @@
 
                 if(totalEncontradosGlobales === 0 && tabla.innerHTML === "") {
                     tabla.innerHTML = `<tr><td colspan="7" class="status-row">Escaneo completo. No se encontraron resultados que cumplan todos los filtros.</td></tr>`;
+                } else {
+                    // SI HUBO RESULTADOS, ENCENDEMOS EL BOTÓN "ENVIAR A GRÁFICO"
+                    btnEnviar.style.display = 'inline-block';
                 }
-                statusBar.innerText = `✅ Escaneo completado. Encontrados: ${totalEncontradosGlobales} tickers ganadores.`;
+                
+                statusBar.innerText = `✅ Escaneo completado. Encontrados: ${totalEncontradosGlobales} tickers.`;
 
             } catch (error) {
                 console.error(error);
@@ -450,9 +559,9 @@
             };
         }
 
-        // ACCIONES
+        // INSTANCIA GUARDADA DE FLATPICKR PARA PODER CONTROLARLA CON JS
         let fechasMassive = { inicio: "", fin: "" };
-        flatpickr("#btn-cal-massive", {
+        const fpMassive = flatpickr("#btn-cal-massive", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-acciones'),
             onClose: function(selectedDates) {
                 if (selectedDates.length === 2) {
