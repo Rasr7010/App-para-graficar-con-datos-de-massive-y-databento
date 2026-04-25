@@ -68,9 +68,11 @@
         }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
         th { background-color: #2b313f; padding: 12px; position: sticky; top: 0; z-index: 2; border-bottom: 2px solid #0b0e14;}
-        td { padding: 12px; border-bottom: 1px solid #2b313f; transition: opacity 0.3s; }
+        td { padding: 12px; border-bottom: 1px solid #2b313f; }
         tr:hover td { background-color: rgba(41, 98, 255, 0.1); }
-        .fila-descartada { opacity: 0.3; }
+        .status-row { text-align: center; font-style: italic; color: #8a93a6; }
+        .error-row { text-align: center; font-weight: bold; color: #ef5350; background-color: rgba(239, 83, 80, 0.1); }
+        .exchange-badge { background-color: #3f4657; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
 
         .floating-toolbar {
             position: absolute; top: 15px; left: 15px; z-index: 20; 
@@ -161,6 +163,7 @@
                     <tr>
                         <th>Fecha</th>
                         <th>Ticker</th>
+                        <th>Exchange</th>
                         <th>Cierre Ayer</th>
                         <th>Apertura Hoy</th>
                         <th>Gap Real %</th>
@@ -168,7 +171,8 @@
                     </tr>
                 </thead>
                 <tbody id="cuerpoTablaGaps">
-                    </tbody>
+                    <tr><td colspan="7" class="status-row">Selecciona un rango de fechas y presiona BUSCAR.</td></tr>
+                </tbody>
             </table>
         </div>
     </div>
@@ -220,7 +224,7 @@
         }
 
         // ==========================================
-        // ESCÁNER DE GAPS: MOTOR PRO UNLEASHED
+        // ESCÁNER DE GAPS: MOTOR PRO (SOLO RESULTADOS REALES)
         // ==========================================
         let fechasScanner = { inicio: "", fin: "" };
         flatpickr("#btn-cal-scanner", {
@@ -281,6 +285,28 @@
             }
         }
 
+        // NUEVA FASE 3: Obtener el nombre de la bolsa (Exchange)
+        async function obtenerExchange(ticker, apiKey) {
+            const url = `https://api.massive.com/v3/reference/tickers/${ticker}?apiKey=${apiKey}`;
+            try {
+                const res = await fetch(url);
+                if (!res.ok) return "N/A";
+                const data = await res.json();
+                
+                if (data.results && data.results.primary_exchange) {
+                    const ex = data.results.primary_exchange;
+                    const mapExchanges = {
+                        'XNAS': 'NASDAQ', 'XNYS': 'NYSE', 'XASE': 'AMEX', 
+                        'BATS': 'BATS', 'ARCX': 'ARCA', 'OOTC': 'OTC', 'OTCM': 'OTC'
+                    };
+                    return mapExchanges[ex] || ex; 
+                }
+                return "N/A";
+            } catch(e) {
+                return "N/A";
+            }
+        }
+
         async function ejecutarScanner() {
             const apiKey = document.getElementById('apiKeyMassive').value.trim();
             const gapMin = parseFloat(document.getElementById('gapMin').value);
@@ -307,7 +333,7 @@
                     let diaSemana = actual.getDay();
                     if (diaSemana !== 0 && diaSemana !== 6) { 
                         let fechaHoyStr = actual.toISOString().split('T')[0];
-                        statusBar.innerText = `Fase 1: Descargando mercado global del ${fechaHoyStr}...`;
+                        statusBar.innerText = `[${fechaHoyStr}] Fase 1: Escaneando 8000+ acciones...`;
                         
                         let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
 
@@ -346,44 +372,32 @@
                                 }
 
                                 if(tickersCandidatos.length > 0) {
-                                    let htmlDelDia = "";
                                     for (let i = 0; i < tickersCandidatos.length; i++) {
                                         let t = tickersCandidatos[i];
-                                        let colorStr = t.gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
-                                        let signo = t.gapPorcentaje > 0 ? '+' : '';
-                                        let rowId = `row-${t.ticker}-${fechaHoyStr}`;
-                                        let volId = `vol-${t.ticker}-${fechaHoyStr}`;
-                                        
-                                        htmlDelDia += `<tr id="${rowId}">
-                                            <td>${fechaHoyStr}</td>
-                                            <td><strong>${t.ticker}</strong></td>
-                                            <td>$${t.ayer.c.toFixed(2)}</td>
-                                            <td>$${t.hoy.o.toFixed(2)}</td>
-                                            <td style="color: ${colorStr}; font-weight: bold;">${signo}${t.gapPorcentaje.toFixed(2)}%</td>
-                                            <td id="${volId}" style="color: #2962ff; font-weight: bold;">Calculando PM...</td>
-                                        </tr>`;
-                                    }
-                                    // INSERCIÓN NO DESTRUCTIVA (Evita borrar el DOM de días anteriores)
-                                    tabla.insertAdjacentHTML('beforeend', htmlDelDia);
-                                    
-                                    statusBar.innerText = `Fase 2: Analizando volumen Pre-Market para ${tickersCandidatos.length} tickers del ${fechaHoyStr}...`;
-
-                                    // VELOCIDAD MÁXIMA SIN DELAYS
-                                    for (let i = 0; i < tickersCandidatos.length; i++) {
-                                        let t = tickersCandidatos[i];
-                                        let celdaVol = document.getElementById(`vol-${t.ticker}-${fechaHoyStr}`);
-                                        let fila = document.getElementById(`row-${t.ticker}-${fechaHoyStr}`);
+                                        statusBar.innerText = `[${fechaHoyStr}] Fase 2: Analizando volumen PM para ${t.ticker} (${i+1}/${tickersCandidatos.length})...`;
                                         
                                         let volPM = await obtenerVolumenPremarket(t.ticker, fechaHoyStr, apiKey);
                                         
+                                        // SI PASA EL FILTRO, LO INYECTAMOS EN LA TABLA
                                         if (volPM >= volMin) {
-                                            celdaVol.innerHTML = volPM.toLocaleString();
-                                            celdaVol.style.color = "white"; 
                                             totalEncontradosGlobales++;
-                                        } else {
-                                            celdaVol.innerHTML = volPM.toLocaleString() + " (Menor al filtro)";
-                                            celdaVol.style.color = "#8a93a6";
-                                            fila.classList.add("fila-descartada"); 
+                                            statusBar.innerText = `[${fechaHoyStr}] Fase 3: Obteniendo Exchange para ${t.ticker}...`;
+                                            let nombreExchange = await obtenerExchange(t.ticker, apiKey);
+                                            
+                                            let colorStr = t.gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
+                                            let signo = t.gapPorcentaje > 0 ? '+' : '';
+                                            
+                                            let filaGanadora = `<tr>
+                                                <td>${fechaHoyStr}</td>
+                                                <td><strong>${t.ticker}</strong></td>
+                                                <td><span class="exchange-badge">${nombreExchange}</span></td>
+                                                <td>$${t.ayer.c.toFixed(2)}</td>
+                                                <td>$${t.hoy.o.toFixed(2)}</td>
+                                                <td style="color: ${colorStr}; font-weight: bold;">${signo}${t.gapPorcentaje.toFixed(2)}%</td>
+                                                <td style="color: white; font-weight: bold;">${volPM.toLocaleString()}</td>
+                                            </tr>`;
+                                            
+                                            tabla.insertAdjacentHTML('beforeend', filaGanadora);
                                         }
                                     }
                                 }
@@ -394,9 +408,9 @@
                 }
 
                 if(totalEncontradosGlobales === 0 && tabla.innerHTML === "") {
-                    tabla.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. No se encontraron resultados.</td></tr>`;
+                    tabla.innerHTML = `<tr><td colspan="7" class="status-row">Escaneo completo. No se encontraron resultados que cumplan todos los filtros.</td></tr>`;
                 }
-                statusBar.innerText = `✅ Escaneo completado. Encontrados: ${totalEncontradosGlobales}`;
+                statusBar.innerText = `✅ Escaneo completado. Encontrados: ${totalEncontradosGlobales} tickers ganadores.`;
 
             } catch (error) {
                 console.error(error);
@@ -408,7 +422,7 @@
         }
 
         // ==========================================
-        // LÓGICA DE GRÁFICOS (MANTENIDA INTACTA)
+        // LÓGICA DE GRÁFICOS
         // ==========================================
         function crearConfigGrafico(zonaHoraria) {
             return {
