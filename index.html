@@ -59,6 +59,14 @@
             display: flex; flex-direction: column;
         }
         
+        /* LEYENDA TIPO TRADINGVIEW */
+        .chart-legend {
+            position: absolute; top: 60px; left: 15px; z-index: 20;
+            font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+            font-size: 13px; color: #8a93a6; display: none; pointer-events: none;
+            text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+        }
+
         /* TABLA DEL ESCANER */
         .status-container {
             width: 100%; max-width: 1200px; background-color: #2b313f; padding: 10px;
@@ -103,7 +111,7 @@
         
         .etiqueta-param { color: #8a93a6; font-size: 14px; font-weight: bold; margin-right: -5px;}
 
-        /* ESTILOS DEL PANEL DROPDOWN EN EL GRÁFICO CON ANIMACIONES */
+        /* ESTILOS DEL PANEL DROPDOWN EN EL GRÁFICO */
         .panel-gaps-flotante {
             position: absolute; top: 55px; left: 15px; z-index: 30;
             background-color: rgba(30, 34, 45, 0.95); border: 1px solid #2b313f;
@@ -115,16 +123,13 @@
         .item-gap-flotante {
             padding: 10px 15px; border-bottom: 1px solid #2b313f; cursor: pointer;
             display: flex; justify-content: space-between; align-items: center;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, background-color 0.2s;
+            transition: opacity 0.2s ease, background-color 0.2s;
         }
         .item-gap-flotante:hover { background-color: rgba(41, 98, 255, 0.2); }
         .item-gap-flotante:last-child { border-bottom: none; }
         
         .item-info-wrapper { display: flex; align-items: center; }
-        .checkbox-visto {
-            width: 16px; height: 16px; margin-right: 12px; cursor: pointer;
-            accent-color: #2962ff;
-        }
+        .checkbox-visto { width: 16px; height: 16px; margin-right: 12px; cursor: pointer; accent-color: #2962ff; }
         
         .item-ticker { font-weight: bold; font-size: 14px; color: white; transition: color 0.3s; }
         .item-fecha { font-size: 11px; color: #8a93a6; margin-left: 8px; }
@@ -132,19 +137,8 @@
         
         .panel-header { padding: 10px 15px; background-color: #2b313f; font-weight: bold; font-size: 12px; color: #d1d4dc; position: sticky; top: 0; z-index: 5; }
 
-        /* CLASES PARA LA ANIMACIÓN Y EL ESTADO "VISTO" */
-        .animando-salida {
-            transform: translateX(30px);
-            opacity: 0 !important;
-        }
-        .item-visto {
-            opacity: 0.35;
-            background-color: transparent !important;
-        }
-        .item-visto .item-ticker {
-            text-decoration: line-through;
-            color: #8a93a6;
-        }
+        .item-visto { opacity: 0.35; background-color: transparent !important; }
+        .item-visto .item-ticker { text-decoration: line-through; color: #8a93a6; }
     </style>
 </head>
 <body>
@@ -176,6 +170,8 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                 </button>
             </div>
+
+            <div id="leyendaGrafico" class="chart-legend"></div>
 
             <div id="panelGaps" class="panel-gaps-flotante">
                 <div class="panel-header">Gaps Enviados desde el Escáner</div>
@@ -262,7 +258,6 @@
     </div>
 
     <script>
-        // VARIABLE GLOBAL PARA ALMACENAR GAPS ENCONTRADOS
         let gapsParaGrafico = [];
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -279,9 +274,7 @@
             document.getElementById(`vista-${pestana}`).classList.add('activa');
             window.dispatchEvent(new Event('resize'));
             
-            if(pestana !== 'acciones') {
-                document.getElementById('panelGaps').classList.remove('activo');
-            }
+            if(pestana !== 'acciones') document.getElementById('panelGaps').classList.remove('activo');
         }
 
         function pantallaCompleta(idContenedor) {
@@ -291,32 +284,30 @@
         }
 
         // ==========================================
-        // COMUNICACIÓN ESCÁNER -> GRÁFICO (CON ANIMACIÓN DE VISTO)
+        // COMUNICACIÓN ESCÁNER -> GRÁFICO 
         // ==========================================
         function togglePanelGaps() {
             document.getElementById('panelGaps').classList.toggle('activo');
         }
 
         function marcarComoVisto(event, idElemento) {
-            // Evitar que el clic en el checkbox dispare la función de abrir el gráfico
             event.stopPropagation();
-            
             const el = document.getElementById(idElemento);
             const contenedor = document.getElementById('contenidoPanelGaps');
-            const isChecked = event.target.checked;
-
-            if (isChecked) {
-                // 1. Inicia animación de salida hacia la derecha
-                el.classList.add('animando-salida');
-
-                // 2. Espera a que termine la animación, lo mueve al final y lo trae de vuelta
+            
+            if (event.target.checked) {
+                // Desvanecer suavemente
+                el.style.opacity = '0';
+                
                 setTimeout(() => {
-                    contenedor.appendChild(el); // Mueve el elemento al final de la lista
-                    el.classList.add('item-visto'); // Le da el estilo opaco y tachado
-                    el.classList.remove('animando-salida'); // Lo trae de vuelta
-                }, 300); // 300ms debe coincidir con la transición en CSS
+                    // Mover al fondo del DOM
+                    contenedor.appendChild(el);
+                    // Aplicar estilos de visto (tachado y opacidad 0.35 definida en CSS)
+                    el.classList.add('item-visto');
+                    // Limpiar el estilo en línea para que tome el del CSS
+                    el.style.opacity = ''; 
+                }, 200); 
             } else {
-                // Si se desmarca, simplemente le quitamos el estado visto (se queda abajo)
                 el.classList.remove('item-visto');
             }
         }
@@ -328,7 +319,7 @@
             gapsParaGrafico.forEach((gap, index) => {
                 let colorStr = gap.porcentaje >= 0 ? '#26a69a' : '#ef5350';
                 let signo = gap.porcentaje > 0 ? '+' : '';
-                let uniqueId = `gap-item-${index}`; // ID único para la animación
+                let uniqueId = `gap-item-${index}`; 
                 
                 htmlPanel += `<div class="item-gap-flotante" id="${uniqueId}" onclick="abrirGapEnGrafico('${gap.ticker}', '${gap.fecha}')">
                     <div class="item-info-wrapper">
@@ -350,14 +341,14 @@
         function abrirGapEnGrafico(ticker, fecha) {
             document.getElementById('tickerMassive').value = ticker;
             fechasMassive.inicio = fecha;
-            fechasMassive.fin = fecha;
+            fechasMassive.fin = fecha; // Carga estricta de 1 solo día
             fpMassive.setDate([fecha, fecha]);
             cargarDatosMassive();
             document.getElementById('panelGaps').classList.remove('activo');
         }
 
         // ==========================================
-        // ESCÁNER DE GAPS: MOTOR PRO UNLEASHED
+        // MOTOR DEL ESCÁNER 
         // ==========================================
         let fechasScanner = { inicio: "", fin: "" };
         flatpickr("#btn-cal-scanner", {
@@ -371,19 +362,15 @@
         });
 
         const dataCache = {}; 
-        
         async function descargarDiaMercado(fechaStr, apiKey) {
             if (dataCache[fechaStr]) return dataCache[fechaStr]; 
             const url = `https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/${fechaStr}?adjusted=true&apiKey=${apiKey}`;
             const res = await fetch(url);
-            
             if (!res.ok) throw new Error("API_ERROR");
             const data = await res.json();
             if (data.status === "ERROR") throw new Error("API_ERROR");
-
             const mapaTickers = {};
             if (data.results) data.results.forEach(stock => mapaTickers[stock.T] = stock);
-            
             dataCache[fechaStr] = mapaTickers; 
             return mapaTickers;
         }
@@ -393,29 +380,20 @@
             try {
                 const res = await fetch(url);
                 if (!res.ok) return 0; 
-                
                 const data = await res.json();
                 if (data.status === "ERROR" || !data.results) return 0; 
-
                 let volPM = 0;
                 const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
-                
                 data.results.forEach(b => {
                     const parts = formatter.formatToParts(new Date(b.t));
                     let hh = 0, mm = 0;
-                    parts.forEach(p => {
-                        if (p.type === 'hour') hh = parseInt(p.value, 10);
-                        if (p.type === 'minute') mm = parseInt(p.value, 10);
-                    });
+                    parts.forEach(p => { if (p.type === 'hour') hh = parseInt(p.value, 10); if (p.type === 'minute') mm = parseInt(p.value, 10); });
                     if (hh === 24) hh = 0;
-                    
                     const minTotales = hh * 60 + mm;
                     if (minTotales >= 240 && minTotales < 570) volPM += b.v;
                 });
                 return volPM;
-            } catch (e) {
-                return 0; 
-            }
+            } catch (e) { return 0; }
         }
 
         async function obtenerExchange(ticker, apiKey) {
@@ -424,19 +402,13 @@
                 const res = await fetch(url);
                 if (!res.ok) return "N/A";
                 const data = await res.json();
-                
                 if (data.results && data.results.primary_exchange) {
                     const ex = data.results.primary_exchange;
-                    const mapExchanges = {
-                        'XNAS': 'NASDAQ', 'XNYS': 'NYSE', 'XASE': 'AMEX', 
-                        'BATS': 'BATS', 'ARCX': 'ARCA', 'OOTC': 'OTC', 'OTCM': 'OTC'
-                    };
+                    const mapExchanges = { 'XNAS': 'NASDAQ', 'XNYS': 'NYSE', 'XASE': 'AMEX', 'BATS': 'BATS', 'ARCX': 'ARCA', 'OOTC': 'OTC', 'OTCM': 'OTC' };
                     return mapExchanges[ex] || ex; 
                 }
                 return "N/A";
-            } catch(e) {
-                return "N/A";
-            }
+            } catch(e) { return "N/A"; }
         }
 
         async function ejecutarScanner() {
@@ -459,7 +431,6 @@
             btnEnviar.style.display = 'none';
             gapsParaGrafico = []; 
             let totalEncontradosGlobales = 0;
-
             let actual = new Date(fechasScanner.inicio + "T00:00:00");
             let limite = new Date(fechasScanner.fin + "T00:00:00");
 
@@ -469,65 +440,50 @@
                     if (diaSemana !== 0 && diaSemana !== 6) { 
                         let fechaHoyStr = actual.toISOString().split('T')[0];
                         statusBar.innerText = `[${fechaHoyStr}] Fase 1: Escaneando 8000+ acciones...`;
-                        
                         let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
 
                         if (Object.keys(dataHoy).length > 0) {
                             let fechaBusqueda = new Date(fechaHoyStr + "T00:00:00");
-                            let dataAyer = null;
-                            let intentosRetroceso = 5; 
-                            
+                            let dataAyer = null; let intentosRetroceso = 5; 
                             while(intentosRetroceso > 0) {
                                 fechaBusqueda.setDate(fechaBusqueda.getDate() - 1);
                                 let d = fechaBusqueda.getDay();
                                 if (d !== 0 && d !== 6) { 
                                     let fBusqStr = fechaBusqueda.toISOString().split('T')[0];
                                     let dataTemp = await descargarDiaMercado(fBusqStr, apiKey);
-                                    if (Object.keys(dataTemp).length > 0) {
-                                        dataAyer = dataTemp;
-                                        break; 
-                                    }
+                                    if (Object.keys(dataTemp).length > 0) { dataAyer = dataTemp; break; }
                                 }
                                 intentosRetroceso--;
                             }
 
                             if (dataAyer) {
                                 let tickersCandidatos = [];
-                                
                                 for (let ticker in dataHoy) {
-                                    let hoy = dataHoy[ticker];
-                                    let ayer = dataAyer[ticker];
+                                    let hoy = dataHoy[ticker]; let ayer = dataAyer[ticker];
                                     if (ayer && ayer.c && hoy && hoy.o) {
                                         let gapPorcentaje = ((hoy.o / ayer.c) - 1) * 100;
                                         let esGapValido = gapPorcentaje >= gapMin && gapPorcentaje <= gapMax;
-                                        if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) {
-                                            tickersCandidatos.push({ ticker, ayer, hoy, gapPorcentaje });
-                                        }
+                                        if (hoy.o >= precioMin && hoy.o <= precioMax && esGapValido) tickersCandidatos.push({ ticker, ayer, hoy, gapPorcentaje });
                                     }
                                 }
 
                                 if(tickersCandidatos.length > 0) {
                                     for (let i = 0; i < tickersCandidatos.length; i++) {
                                         let t = tickersCandidatos[i];
-                                        statusBar.innerText = `[${fechaHoyStr}] Fase 2: Analizando volumen PM para ${t.ticker} (${i+1}/${tickersCandidatos.length})...`;
-                                        
+                                        statusBar.innerText = `[${fechaHoyStr}] Fase 2: Volumen PM para ${t.ticker} (${i+1}/${tickersCandidatos.length})...`;
                                         let volPM = await obtenerVolumenPremarket(t.ticker, fechaHoyStr, apiKey);
                                         
                                         if (volPM >= volMin) {
                                             totalEncontradosGlobales++;
-                                            statusBar.innerText = `[${fechaHoyStr}] Fase 3: Obteniendo Exchange para ${t.ticker}...`;
+                                            statusBar.innerText = `[${fechaHoyStr}] Fase 3: Exchange de ${t.ticker}...`;
                                             let nombreExchange = await obtenerExchange(t.ticker, apiKey);
                                             
-                                            gapsParaGrafico.push({
-                                                fecha: fechaHoyStr,
-                                                ticker: t.ticker,
-                                                porcentaje: t.gapPorcentaje
-                                            });
+                                            gapsParaGrafico.push({ fecha: fechaHoyStr, ticker: t.ticker, porcentaje: t.gapPorcentaje });
                                             
                                             let colorStr = t.gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
                                             let signo = t.gapPorcentaje > 0 ? '+' : '';
                                             
-                                            let filaGanadora = `<tr>
+                                            tabla.insertAdjacentHTML('beforeend', `<tr>
                                                 <td>${fechaHoyStr}</td>
                                                 <td><strong>${t.ticker}</strong></td>
                                                 <td><span class="exchange-badge">${nombreExchange}</span></td>
@@ -535,9 +491,7 @@
                                                 <td>$${t.hoy.o.toFixed(2)}</td>
                                                 <td style="color: ${colorStr}; font-weight: bold;">${signo}${t.gapPorcentaje.toFixed(2)}%</td>
                                                 <td style="color: white; font-weight: bold;">${volPM.toLocaleString()}</td>
-                                            </tr>`;
-                                            
-                                            tabla.insertAdjacentHTML('beforeend', filaGanadora);
+                                            </tr>`);
                                         }
                                     }
                                 }
@@ -548,24 +502,20 @@
                 }
 
                 if(totalEncontradosGlobales === 0 && tabla.innerHTML === "") {
-                    tabla.innerHTML = `<tr><td colspan="7" class="status-row">Escaneo completo. No se encontraron resultados que cumplan todos los filtros.</td></tr>`;
+                    tabla.innerHTML = `<tr><td colspan="7" class="status-row">No se encontraron resultados.</td></tr>`;
                 } else {
                     btnEnviar.style.display = 'inline-block';
                 }
-                
                 statusBar.innerText = `✅ Escaneo completado. Encontrados: ${totalEncontradosGlobales} tickers.`;
 
             } catch (error) {
-                console.error(error);
-                statusBar.innerText = `❌ Error de conexión con la API de Massive.`;
-                statusBar.style.color = "#ef5350";
+                statusBar.innerText = `❌ Error de conexión con la API.`; statusBar.style.color = "#ef5350";
             }
-            
             btn.disabled = false;
         }
 
         // ==========================================
-        // LÓGICA DE GRÁFICOS
+        // LÓGICA DE GRÁFICOS (MASSIVE CON VWAP Y LÍNEA DE APERTURA)
         // ==========================================
         function crearConfigGrafico(zonaHoraria) {
             return {
@@ -608,10 +558,45 @@
         const graficoMassive = LightweightCharts.createChart(document.getElementById('contenedor-acciones'), crearConfigGrafico('America/New_York'));
         const fondoMassive = graficoMassive.addAreaSeries({ priceScaleId: 'bg_scale', lineVisible: false, topColor: 'rgba(42, 46, 57, 0.6)', bottomColor: 'rgba(42, 46, 57, 0.6)', lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, lineType: 1, autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }) });
         graficoMassive.priceScale('bg_scale').applyOptions({ visible: false, scaleMargins: { top: 0, bottom: 0 } });
+        
         const vwapMassive = graficoMassive.addLineSeries({ color: '#ff9800', lineWidth: 2, crosshairMarkerVisible: false, priceLineVisible: false });
         const velasMassive = graficoMassive.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderDownColor: '#ef5350', borderUpColor: '#26a69a', wickDownColor: '#ef5350', wickUpColor: '#26a69a' });
         const volMassive = graficoMassive.addHistogramSeries({ priceScaleId: 'vol_scale', priceFormat: { type: 'volume' } });
         graficoMassive.priceScale('vol_scale').applyOptions({ visible: false, scaleMargins: { top: 0.7, bottom: 0 } });
+        
+        // NUEVA SERIE: Línea punteada verde para la apertura de 9:30 AM
+        const lineaAperturaMassive = graficoMassive.addLineSeries({ 
+            color: '#26a69a', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, 
+            crosshairMarkerVisible: false, priceLineVisible: false, lastValueVisible: false 
+        });
+
+        // EVENTO PARA LA LEYENDA TIPO TRADINGVIEW
+        graficoMassive.subscribeCrosshairMove(param => {
+            const legend = document.getElementById('leyendaGrafico');
+            // Validar que el cursor esté dentro del área del gráfico y tenga datos
+            if (!param.time || param.point.x < 0 || param.point.y < 0) {
+                legend.style.display = 'none';
+                return;
+            }
+            
+            const data = param.seriesData.get(velasMassive);
+            if (data) {
+                legend.style.display = 'block';
+                const vData = param.seriesData.get(volMassive);
+                const vwData = param.seriesData.get(vwapMassive);
+                
+                const tk = document.getElementById('tickerMassive').value.toUpperCase();
+                legend.innerHTML = `<span style="color:#8a93a6; margin-right:10px; font-weight:bold;">${tk}</span> ` +
+                    `O <span style="color:white; margin-right:10px;">${data.open.toFixed(2)}</span> ` +
+                    `H <span style="color:white; margin-right:10px;">${data.high.toFixed(2)}</span> ` +
+                    `L <span style="color:white; margin-right:10px;">${data.low.toFixed(2)}</span> ` +
+                    `C <span style="color:white; margin-right:10px;">${data.close.toFixed(2)}</span> ` +
+                    `Vol <span style="color:white; margin-right:10px;">${vData ? vData.value.toLocaleString() : 0}</span> ` +
+                    `VWAP <span style="color:#ff9800;">${vwData ? vwData.value.toFixed(2) : 0}</span>`;
+            } else {
+                legend.style.display = 'none';
+            }
+        });
         
         new ResizeObserver(entries => {
             if (entries.length === 0 || entries[0].target !== document.getElementById('contenedor-acciones')) return;
@@ -629,9 +614,9 @@
             try {
                 const res = await fetch(url); const data = await res.json();
                 if (data.results && data.results.length > 0) {
-                    const vForm = [], volForm = [], bgForm = [], bgRaw = [], vwapForm = []; 
+                    const vForm = [], volForm = [], bgForm = [], bgRaw = [], vwapForm = [], openLineForm = []; 
                     const esDiario = (mult === '1' && ran === 'day');
-                    let sVolPr = 0, sVol = 0, diaActual = null;
+                    let sVolPr = 0, sVol = 0, diaActual = null, openNY = null;
 
                     data.results.forEach(b => {
                         const tUnix = b.t / 1000;
@@ -641,9 +626,25 @@
                         if (!esDiario) {
                             const [hh, mm] = hPt.split(':'); const minT = parseInt(hh) * 60 + parseInt(mm);
                             if (minT < 570 || minT >= 960) ext = true;
+                            
+                            // Resetear variables al cambiar de día
+                            if (diaActual !== fPt) { 
+                                sVolPr = 0; sVol = 0; diaActual = fPt; 
+                                openNY = null; // Reiniciar el Open de NY
+                            }
+                            
+                            // Capturar el Open de las 9:30 AM (o la primera vela regular disponible)
+                            if (openNY === null && minT >= 570 && minT < 960) {
+                                openNY = b.o; 
+                            }
+                            // Dibujar la línea desde las 9:30 AM hasta las 4:00 PM
+                            if (openNY !== null && minT >= 570 && minT < 960) {
+                                openLineForm.push({ time: tUnix, value: openNY });
+                            }
+                        } else {
+                            if (diaActual !== fPt) { sVolPr = 0; sVol = 0; diaActual = fPt; }
                         }
 
-                        if (diaActual !== fPt) { sVolPr = 0; sVol = 0; diaActual = fPt; }
                         sVolPr += ((b.h + b.l + b.c) / 3 * b.v); sVol += b.v;
 
                         vForm.push({ time: tUnix, open: b.o, high: b.h, low: b.l, close: b.c });
@@ -658,12 +659,20 @@
                         bgForm.push({ time: a.time, value: val });
                     });
 
-                    fondoMassive.setData(bgForm); vwapMassive.setData(vwapForm); velasMassive.setData(vForm); volMassive.setData(volForm); graficoMassive.timeScale().fitContent(); 
+                    fondoMassive.setData(bgForm); 
+                    vwapMassive.setData(vwapForm); 
+                    velasMassive.setData(vForm); 
+                    volMassive.setData(volForm); 
+                    lineaAperturaMassive.setData(openLineForm); // Inyectar la línea de apertura
+                    
+                    graficoMassive.timeScale().fitContent(); 
                 }
             } catch (e) { console.error(e); }
         }
 
-        // FUTUROS
+        // ==========================================
+        // FUTUROS (DATABENTO) - Mantenido Intacto
+        // ==========================================
         let fechasDatabento = { inicio: "", fin: "" };
         flatpickr("#btn-cal-databento", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-futuros'),
