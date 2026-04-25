@@ -302,16 +302,12 @@
             // 1. Asignar Ticker
             document.getElementById('tickerMassive').value = ticker;
             
-            // 2. Calcular Rango Estratégico (2 días antes, 2 días después)
-            let fechaGap = new Date(fecha + "T00:00:00");
-            let dInicio = new Date(fechaGap); dInicio.setDate(dInicio.getDate() - 2);
-            let dFin = new Date(fechaGap); dFin.setDate(dFin.getDate() + 2);
-            
-            fechasMassive.inicio = dInicio.toISOString().split('T')[0];
-            fechasMassive.fin = dFin.toISOString().split('T')[0];
+            // 2. Cargar SOLO el día exacto del gap
+            fechasMassive.inicio = fecha;
+            fechasMassive.fin = fecha;
             
             // 3. Actualizar la interfaz del calendario de Massive
-            fpMassive.setDate([fechasMassive.inicio, fechasMassive.fin]);
+            fpMassive.setDate([fecha, fecha]);
             
             // 4. Descargar y dibujar
             cargarDatosMassive();
