@@ -50,7 +50,6 @@
         .btn-accion:hover { background-color: #1e4bd8; }
         .btn-accion:disabled { background-color: #555; cursor: not-allowed; }
         
-        /* Botón especial para enviar al gráfico */
         .btn-enviar { background-color: #ff9800; display: none; }
         .btn-enviar:hover { background-color: #e68a00; }
 
@@ -104,25 +103,48 @@
         
         .etiqueta-param { color: #8a93a6; font-size: 14px; font-weight: bold; margin-right: -5px;}
 
-        /* ESTILOS DEL PANEL DROPDOWN EN EL GRÁFICO */
+        /* ESTILOS DEL PANEL DROPDOWN EN EL GRÁFICO CON ANIMACIONES */
         .panel-gaps-flotante {
             position: absolute; top: 55px; left: 15px; z-index: 30;
             background-color: rgba(30, 34, 45, 0.95); border: 1px solid #2b313f;
-            border-radius: 6px; width: 280px; max-height: 350px; overflow-y: auto;
+            border-radius: 6px; width: 300px; max-height: 350px; overflow-y: auto;
             box-shadow: 0 8px 16px rgba(0,0,0,0.5); display: none; flex-direction: column;
         }
         .panel-gaps-flotante.activo { display: flex; }
+        
         .item-gap-flotante {
             padding: 10px 15px; border-bottom: 1px solid #2b313f; cursor: pointer;
             display: flex; justify-content: space-between; align-items: center;
-            transition: background 0.2s;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, background-color 0.2s;
         }
         .item-gap-flotante:hover { background-color: rgba(41, 98, 255, 0.2); }
         .item-gap-flotante:last-child { border-bottom: none; }
-        .item-ticker { font-weight: bold; font-size: 14px; color: white; }
+        
+        .item-info-wrapper { display: flex; align-items: center; }
+        .checkbox-visto {
+            width: 16px; height: 16px; margin-right: 12px; cursor: pointer;
+            accent-color: #2962ff;
+        }
+        
+        .item-ticker { font-weight: bold; font-size: 14px; color: white; transition: color 0.3s; }
         .item-fecha { font-size: 11px; color: #8a93a6; margin-left: 8px; }
         .item-valor { font-weight: bold; font-size: 13px; }
-        .panel-header { padding: 10px 15px; background-color: #2b313f; font-weight: bold; font-size: 12px; color: #d1d4dc; position: sticky; top: 0; }
+        
+        .panel-header { padding: 10px 15px; background-color: #2b313f; font-weight: bold; font-size: 12px; color: #d1d4dc; position: sticky; top: 0; z-index: 5; }
+
+        /* CLASES PARA LA ANIMACIÓN Y EL ESTADO "VISTO" */
+        .animando-salida {
+            transform: translateX(30px);
+            opacity: 0 !important;
+        }
+        .item-visto {
+            opacity: 0.35;
+            background-color: transparent !important;
+        }
+        .item-visto .item-ticker {
+            text-decoration: line-through;
+            color: #8a93a6;
+        }
     </style>
 </head>
 <body>
@@ -257,7 +279,6 @@
             document.getElementById(`vista-${pestana}`).classList.add('activa');
             window.dispatchEvent(new Event('resize'));
             
-            // Cerrar el panel flotante si cambiamos de pestaña
             if(pestana !== 'acciones') {
                 document.getElementById('panelGaps').classList.remove('activo');
             }
@@ -270,24 +291,52 @@
         }
 
         // ==========================================
-        // COMUNICACIÓN ESCÁNER -> GRÁFICO
+        // COMUNICACIÓN ESCÁNER -> GRÁFICO (CON ANIMACIÓN DE VISTO)
         // ==========================================
         function togglePanelGaps() {
             document.getElementById('panelGaps').classList.toggle('activo');
+        }
+
+        function marcarComoVisto(event, idElemento) {
+            // Evitar que el clic en el checkbox dispare la función de abrir el gráfico
+            event.stopPropagation();
+            
+            const el = document.getElementById(idElemento);
+            const contenedor = document.getElementById('contenidoPanelGaps');
+            const isChecked = event.target.checked;
+
+            if (isChecked) {
+                // 1. Inicia animación de salida hacia la derecha
+                el.classList.add('animando-salida');
+
+                // 2. Espera a que termine la animación, lo mueve al final y lo trae de vuelta
+                setTimeout(() => {
+                    contenedor.appendChild(el); // Mueve el elemento al final de la lista
+                    el.classList.add('item-visto'); // Le da el estilo opaco y tachado
+                    el.classList.remove('animando-salida'); // Lo trae de vuelta
+                }, 300); // 300ms debe coincidir con la transición en CSS
+            } else {
+                // Si se desmarca, simplemente le quitamos el estado visto (se queda abajo)
+                el.classList.remove('item-visto');
+            }
         }
 
         function enviarAlGrafico() {
             if (gapsParaGrafico.length === 0) return;
             
             let htmlPanel = '';
-            gapsParaGrafico.forEach(gap => {
+            gapsParaGrafico.forEach((gap, index) => {
                 let colorStr = gap.porcentaje >= 0 ? '#26a69a' : '#ef5350';
                 let signo = gap.porcentaje > 0 ? '+' : '';
+                let uniqueId = `gap-item-${index}`; // ID único para la animación
                 
-                htmlPanel += `<div class="item-gap-flotante" onclick="abrirGapEnGrafico('${gap.ticker}', '${gap.fecha}')">
-                    <div>
-                        <span class="item-ticker">${gap.ticker}</span>
-                        <span class="item-fecha">${gap.fecha}</span>
+                htmlPanel += `<div class="item-gap-flotante" id="${uniqueId}" onclick="abrirGapEnGrafico('${gap.ticker}', '${gap.fecha}')">
+                    <div class="item-info-wrapper">
+                        <input type="checkbox" class="checkbox-visto" onclick="marcarComoVisto(event, '${uniqueId}')" title="Marcar como revisado">
+                        <div>
+                            <span class="item-ticker">${gap.ticker}</span>
+                            <span class="item-fecha">${gap.fecha}</span>
+                        </div>
                     </div>
                     <div class="item-valor" style="color: ${colorStr};">${signo}${gap.porcentaje.toFixed(2)}%</div>
                 </div>`;
@@ -299,20 +348,11 @@
         }
 
         function abrirGapEnGrafico(ticker, fecha) {
-            // 1. Asignar Ticker
             document.getElementById('tickerMassive').value = ticker;
-            
-            // 2. Cargar SOLO el día exacto del gap
             fechasMassive.inicio = fecha;
             fechasMassive.fin = fecha;
-            
-            // 3. Actualizar la interfaz del calendario de Massive
             fpMassive.setDate([fecha, fecha]);
-            
-            // 4. Descargar y dibujar
             cargarDatosMassive();
-            
-            // 5. Cerrar panel flotante
             document.getElementById('panelGaps').classList.remove('activo');
         }
 
@@ -417,7 +457,7 @@
             tabla.innerHTML = ""; 
             btn.disabled = true;
             btnEnviar.style.display = 'none';
-            gapsParaGrafico = []; // Reiniciamos la memoria global
+            gapsParaGrafico = []; 
             let totalEncontradosGlobales = 0;
 
             let actual = new Date(fechasScanner.inicio + "T00:00:00");
@@ -478,7 +518,6 @@
                                             statusBar.innerText = `[${fechaHoyStr}] Fase 3: Obteniendo Exchange para ${t.ticker}...`;
                                             let nombreExchange = await obtenerExchange(t.ticker, apiKey);
                                             
-                                            // GUARDAMOS EL GANADOR EN LA MEMORIA GLOBAL PARA EL GRÁFICO
                                             gapsParaGrafico.push({
                                                 fecha: fechaHoyStr,
                                                 ticker: t.ticker,
@@ -511,7 +550,6 @@
                 if(totalEncontradosGlobales === 0 && tabla.innerHTML === "") {
                     tabla.innerHTML = `<tr><td colspan="7" class="status-row">Escaneo completo. No se encontraron resultados que cumplan todos los filtros.</td></tr>`;
                 } else {
-                    // SI HUBO RESULTADOS, ENCENDEMOS EL BOTÓN "ENVIAR A GRÁFICO"
                     btnEnviar.style.display = 'inline-block';
                 }
                 
@@ -555,7 +593,6 @@
             };
         }
 
-        // INSTANCIA GUARDADA DE FLATPICKR PARA PODER CONTROLARLA CON JS
         let fechasMassive = { inicio: "", fin: "" };
         const fpMassive = flatpickr("#btn-cal-massive", {
             mode: "range", dateFormat: "Y-m-d", theme: "dark", appendTo: document.getElementById('contenedor-acciones'),
