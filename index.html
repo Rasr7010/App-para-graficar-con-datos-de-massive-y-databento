@@ -65,14 +65,12 @@
             display: flex; flex-direction: column;
         }
         
-        /* LEYENDA TIPO TRADINGVIEW */
         .chart-legend {
             position: absolute; top: 60px; left: 15px; z-index: 20;
             font-size: 13px; color: #8a93a6; display: none; pointer-events: none;
             text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
         }
 
-        /* TABLA DEL ESCANER */
         .status-container {
             width: 100%; max-width: 1200px; background-color: #2b313f; padding: 10px;
             border-radius: 8px 8px 0 0; text-align: center; font-weight: bold; color: #d1d4dc; box-sizing: border-box;
@@ -89,7 +87,6 @@
         .error-row { text-align: center; font-weight: bold; color: #ef5350; background-color: rgba(239, 83, 80, 0.1); }
         .exchange-badge { background-color: #3f4657; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
 
-        /* TOOLBARS FLOTANTES EN GRÁFICO */
         .floating-toolbar {
             position: absolute; top: 15px; left: 15px; z-index: 20; 
             display: flex; gap: 5px; background: rgba(30, 34, 45, 0.85); padding: 6px; border-radius: 6px; align-items: center;
@@ -114,7 +111,6 @@
         
         .etiqueta-param { color: #8a93a6; font-size: 14px; font-weight: bold; margin-right: -5px;}
 
-        /* ESTILOS DEL PANEL DROPDOWN EN EL GRÁFICO */
         .panel-gaps-flotante {
             position: absolute; top: 55px; left: 15px; z-index: 30;
             background-color: rgba(30, 34, 45, 0.95); border: 1px solid #2b313f; border-radius: 6px; width: 300px; max-height: 350px; overflow-y: auto; box-shadow: 0 8px 16px rgba(0,0,0,0.5); display: none; flex-direction: column;
@@ -135,10 +131,9 @@
         .item-visto { opacity: 0.35; background-color: transparent !important; }
         .item-visto .item-ticker { text-decoration: line-through; color: #8a93a6; }
 
-        /* MODALES (VENTANAS FLOTANTES) */
         .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background-color: rgba(0, 0, 0, 0.7); z-index: 100; display: none;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); z-index: 1000; display: none;
             justify-content: center; align-items: center; backdrop-filter: blur(3px);
         }
         .modal-overlay.activo { display: flex; }
@@ -155,8 +150,8 @@
         
         .toggle-switch { display: flex; background: #0b0e14; border-radius: 4px; overflow: hidden; border: 1px solid #2b313f;}
         .toggle-btn { flex: 1; text-align: center; padding: 6px; cursor: pointer; color: #8a93a6; font-size: 13px; font-weight: bold; transition: 0.2s; }
-        .toggle-btn.activo.largo { background: #26a69a; color: white; }
-        .toggle-btn.activo.corto { background: #ef5350; color: white; }
+        .toggle-btn.largo.activo { background: #26a69a; color: white; }
+        .toggle-btn.corto.activo { background: #ef5350; color: white; }
     </style>
 </head>
 <body>
@@ -171,6 +166,7 @@
         <div class="controles">
             <input type="password" id="apiKeyMassive" placeholder="API Key Massive" style="width: 250px;">
         </div>
+        
         <div id="contenedor-acciones" class="grafico-contenedor">
             <div class="floating-toolbar">
                 <button class="btn-icono" onclick="togglePanelGaps()" title="Ver lista de Gaps del Escáner">
@@ -189,7 +185,7 @@
             </div>
 
             <div class="floating-toolbar-right">
-                <button id="btnNuevaOrden" class="btn-accion btn-exito" style="display:none;" disabled onclick="abrirModalOrden()">Nueva Orden</button>
+                <button id="btnNuevaOrden" class="btn-accion" style="display:none;" disabled onclick="abrirModalOrden()">Nueva Orden</button>
                 <button id="btnInitBacktest" class="btn-accion btn-enviar" style="display:block;" onclick="abrirModalBacktest()">Iniciar Backtest</button>
                 <button id="btnTerminarBacktest" class="btn-accion btn-peligro" style="display:none;" onclick="terminarBacktest()">Terminar Backtest</button>
                 <button class="btn-icono" onclick="pantallaCompleta('contenedor-acciones')">
@@ -205,86 +201,87 @@
                     <div style="padding: 15px; text-align: center; color: #8a93a6; font-size: 13px;">No hay datos. Envía una lista desde el Escáner.</div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div id="modalBacktest" class="modal-overlay">
-        <div class="modal-caja">
-            <h3 class="modal-titulo">Iniciar Nuevo Backtest</h3>
-            <div class="form-group">
-                <label>Nombre de la sesión (CSV)</label>
-                <input type="text" id="nombreBacktest" value="Mi_Estrategia_Gap" placeholder="Ej: Scalping_AM">
-            </div>
-            <div class="modal-botones">
-                <button class="btn-accion" style="background-color: transparent; border: 1px solid #8a93a6; color:#8a93a6" onclick="cerrarModal('modalBacktest')">Cancelar</button>
-                <button class="btn-accion" onclick="iniciarSesionBacktest()">Comenzar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modalOrden" class="modal-overlay">
-        <div class="modal-caja" style="width: 450px;">
-            <h3 class="modal-titulo">Parámetros de Entrada</h3>
-            
-            <div class="form-group">
-                <div class="toggle-switch">
-                    <div id="togLargo" class="toggle-btn activo largo" onclick="setDireccion('LONG')">LONG</div>
-                    <div id="togCorto" class="toggle-btn" onclick="setDireccion('SHORT')">SHORT</div>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Precio de Entrada</label>
-                    <input type="number" id="ordEntrada" step="0.01" readonly style="background-color: #131722;">
-                </div>
-                <div class="form-group">
-                    <label>Cantidad (Quantity)</label>
-                    <div style="display:flex;">
-                        <input type="number" id="ordQtyVal" step="1" style="width:60%; border-radius: 4px 0 0 4px; border-right: none;">
-                        <select id="ordQtyTipo" style="width:40%; border-radius: 0 4px 4px 0;">
-                            <option value="SHARES">Acc</option>
-                            <option value="USD">USD</option>
-                        </select>
+            <div id="modalBacktest" class="modal-overlay">
+                <div class="modal-caja">
+                    <h3 class="modal-titulo">Iniciar Nuevo Backtest</h3>
+                    <div class="form-group">
+                        <label>Nombre de la sesión (CSV)</label>
+                        <input type="text" id="nombreBacktest" value="Mi_Estrategia_Gap" placeholder="Ej: Scalping_AM">
+                    </div>
+                    <div class="modal-botones">
+                        <button class="btn-accion" style="background-color: transparent; border: 1px solid #8a93a6; color:#8a93a6" onclick="cerrarModal('modalBacktest')">Cancelar</button>
+                        <button class="btn-accion btn-exito" onclick="iniciarSesionBacktest()">Comenzar</button>
                     </div>
                 </div>
             </div>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Stop Loss</label>
-                    <div style="display:flex;">
-                        <input type="number" id="ordSlVal" step="0.01" style="width:60%; border-radius: 4px 0 0 4px; border-right: none;">
-                        <select id="ordSlTipo" style="width:40%; border-radius: 0 4px 4px 0;">
-                            <option value="PCT">%</option>
-                            <option value="USD">USD</option>
-                            <option value="PRICE">Precio</option>
-                        </select>
+            <div id="modalOrden" class="modal-overlay">
+                <div class="modal-caja" style="width: 450px;">
+                    <h3 class="modal-titulo">Parámetros de Entrada</h3>
+                    
+                    <div class="form-group">
+                        <div class="toggle-switch">
+                            <div id="togLargo" class="toggle-btn largo activo" onclick="setDireccion('LONG')">LONG</div>
+                            <div id="togCorto" class="toggle-btn corto" onclick="setDireccion('SHORT')">SHORT</div>
+                        </div>
                     </div>
-                </div>
-                <div class="form-group">
-                    <label>Take Profit</label>
-                    <div style="display:flex;">
-                        <input type="number" id="ordTpVal" step="0.01" style="width:60%; border-radius: 4px 0 0 4px; border-right: none;">
-                        <select id="ordTpTipo" style="width:40%; border-radius: 0 4px 4px 0;">
-                            <option value="PCT">%</option>
-                            <option value="USD">USD</option>
-                            <option value="PRICE">Precio</option>
-                        </select>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Precio Entrada</label>
+                            <input type="number" id="ordEntrada" step="0.01" readonly style="background-color: #131722;">
+                        </div>
+                        <div class="form-group">
+                            <label>Quantity</label>
+                            <div style="display:flex;">
+                                <input type="number" id="ordQtyVal" step="1" style="width:60%; border-radius: 4px 0 0 4px; border-right: none;" placeholder="Ej: 100">
+                                <select id="ordQtyTipo" style="width:40%; border-radius: 0 4px 4px 0;">
+                                    <option value="SHARES">Acc</option>
+                                    <option value="USD">USD</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Stop Loss (Opcional)</label>
+                            <div style="display:flex;">
+                                <input type="number" id="ordSlVal" step="0.01" style="width:60%; border-radius: 4px 0 0 4px; border-right: none;" placeholder="Vacio = Sin SL">
+                                <select id="ordSlTipo" style="width:40%; border-radius: 0 4px 4px 0;">
+                                    <option value="PCT">%</option>
+                                    <option value="USD">USD</option>
+                                    <option value="PRICE">Precio</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Take Profit (Opcional)</label>
+                            <div style="display:flex;">
+                                <input type="number" id="ordTpVal" step="0.01" style="width:60%; border-radius: 4px 0 0 4px; border-right: none;" placeholder="Vacio = Sin TP">
+                                <select id="ordTpTipo" style="width:40%; border-radius: 0 4px 4px 0;">
+                                    <option value="PCT">%</option>
+                                    <option value="USD">USD</option>
+                                    <option value="PRICE">Precio</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top:10px;">
+                        <label>Hora de Salida Máxima (Opcional) <span style="font-weight:normal; color:#555;">(Ej: 15:45)</span></label>
+                        <input type="time" id="ordTimeVal">
+                    </div>
+
+                    <div class="modal-botones">
+                        <button class="btn-accion" style="background-color: transparent; border: 1px solid #8a93a6; color:#8a93a6" onclick="cerrarModal('modalOrden')">Cancelar</button>
+                        <button class="btn-accion btn-exito" onclick="enviarTrade()">Enviar Orden</button>
                     </div>
                 </div>
             </div>
 
-            <div class="form-group" style="margin-top:10px;">
-                <label>Límite de Tiempo (Minutos) <span style="font-weight:normal; color:#555;">(0 = Sin límite)</span></label>
-                <input type="number" id="ordTimeVal" value="0" step="1">
-            </div>
-
-            <div class="modal-botones">
-                <button class="btn-accion" style="background-color: transparent; border: 1px solid #8a93a6; color:#8a93a6" onclick="cerrarModal('modalOrden')">Cancelar</button>
-                <button class="btn-accion btn-exito" onclick="enviarTrade()">Enviar Orden</button>
-            </div>
-        </div>
+        </div> 
     </div>
 
     <div id="vista-scanner" class="vista-app">
@@ -322,21 +319,18 @@
     </div>
 
     <script>
-        // ==========================================
-        // VARIABLES GLOBALES (Motor y Memoria)
-        // ==========================================
         let gapsParaGrafico = [];
-        let contextoTicker = {}; // Guarda { gapPct, volPm, exchange } por ticker
+        let contextoTicker = {}; 
 
-        // ESTADO DEL BACKTEST
         let isBacktesting = false;
         let nombreSesionBacktest = "Backtest";
         let tradesHistory = [];
-        let globalVelasData = []; // La data cruda del gráfico actual
+        let globalVelasData = []; 
         let selectedCandleIndex = -1;
         let selectedCandleData = null;
-        let chartMarkers = []; // Flechas visuales
+        let chartMarkers = []; 
         let dirTrade = 'LONG';
+        let lineasAperturaMassive = []; // Guarda las series de la linea punteada
 
         document.addEventListener('DOMContentLoaded', () => {
             const massiveKey = localStorage.getItem('massiveKey');
@@ -344,7 +338,6 @@
             if(massiveKey) document.getElementById('apiKeyMassive').value = massiveKey;
             if(bentoKey) document.getElementById('apiKeyDatabento').value = bentoKey;
             
-            // Cargar memoria del modal de orden
             if(localStorage.getItem('bt_qtyVal')) document.getElementById('ordQtyVal').value = localStorage.getItem('bt_qtyVal');
             if(localStorage.getItem('bt_qtyTipo')) document.getElementById('ordQtyTipo').value = localStorage.getItem('bt_qtyTipo');
             if(localStorage.getItem('bt_slVal')) document.getElementById('ordSlVal').value = localStorage.getItem('bt_slVal');
@@ -372,9 +365,6 @@
         function abrirModal(id) { document.getElementById(id).classList.add('activo'); }
         function cerrarModal(id) { document.getElementById(id).classList.remove('activo'); }
 
-        // ==========================================
-        // COMUNICACIÓN ESCÁNER -> GRÁFICO 
-        // ==========================================
         function togglePanelGaps() { document.getElementById('panelGaps').classList.toggle('activo'); }
         function marcarComoVisto(event, idElemento) {
             event.stopPropagation();
@@ -390,9 +380,7 @@
             if (gapsParaGrafico.length === 0) return;
             let htmlPanel = '';
             gapsParaGrafico.forEach((gap, index) => {
-                // Almacenamos el contexto para el backtester
                 contextoTicker[gap.ticker] = { gapPct: gap.porcentaje, volPm: gap.volPm, exchange: gap.exchange };
-                
                 let colorStr = gap.porcentaje >= 0 ? '#26a69a' : '#ef5350';
                 let signo = gap.porcentaje > 0 ? '+' : '';
                 let uniqueId = `gap-item-${index}`; 
@@ -429,13 +417,12 @@
             nombreSesionBacktest = nom;
             isBacktesting = true;
             tradesHistory = [];
-            chartMarkers = [];
-            velasMassive.setMarkers(chartMarkers);
+            actualizarMarcadores(); // Limpia los marcadores
             
             document.getElementById('btnInitBacktest').style.display = 'none';
             document.getElementById('btnTerminarBacktest').style.display = 'block';
             document.getElementById('btnNuevaOrden').style.display = 'block';
-            document.getElementById('btnNuevaOrden').disabled = true; // Deshabilitado hasta tocar vela
+            document.getElementById('btnNuevaOrden').disabled = true; 
             
             cerrarModal('modalBacktest');
         }
@@ -464,105 +451,136 @@
             localStorage.setItem('bt_timeVal', document.getElementById('ordTimeVal').value);
         }
 
+        function actualizarMarcadores() {
+            const currentTk = document.getElementById('tickerMassive').value.toUpperCase().trim();
+            let newMarkers = [];
+            tradesHistory.forEach(trade => {
+                if(trade.Ticker === currentTk) {
+                    newMarkers.push({ time: trade.entryTimeRaw, position: trade.Direction==='LONG'?'belowBar':'aboveBar', color: trade.Direction==='LONG'?'#26a69a':'#ef5350', shape: trade.Direction==='LONG'?'arrowUp':'arrowDown', text: 'Entrada' });
+                    newMarkers.push({ time: trade.exitTimeRaw, position: trade.Direction==='LONG'?'aboveBar':'belowBar', color: '#ff9800', shape: trade.Direction==='LONG'?'arrowDown':'arrowUp', text: `Cierre (${trade.Reason})` });
+                }
+            });
+            newMarkers.sort((a,b) => a.time - b.time);
+            chartMarkers = newMarkers;
+            if(isBacktesting) velasMassive.setMarkers(chartMarkers);
+        }
+
         function enviarTrade() {
             guardarMemoriaParametros();
-            
             const entryPrice = parseFloat(document.getElementById('ordEntrada').value);
             
-            // Cálculos
             const qtyVal = parseFloat(document.getElementById('ordQtyVal').value) || 0;
             const qtyTipo = document.getElementById('ordQtyTipo').value;
-            let qtyShares = qtyTipo === 'SHARES' ? qtyVal : (entryPrice > 0 ? qtyVal / entryPrice : 0);
+            let qtyShares = qtyTipo === 'SHARES' ? Math.floor(qtyVal) : (entryPrice > 0 ? Math.floor(qtyVal / entryPrice) : 0);
             
-            const slVal = parseFloat(document.getElementById('ordSlVal').value) || 0;
-            const slTipo = document.getElementById('ordSlTipo').value;
-            let slPrice = 0;
-            if(slTipo === 'PRICE') slPrice = slVal;
-            else if(slTipo === 'USD') slPrice = dirTrade === 'LONG' ? entryPrice - slVal : entryPrice + slVal;
-            else if(slTipo === 'PCT') slPrice = dirTrade === 'LONG' ? entryPrice * (1 - slVal/100) : entryPrice * (1 + slVal/100);
+            const slInput = document.getElementById('ordSlVal').value;
+            let slPrice = null;
+            if(slInput !== "") {
+                let slVal = parseFloat(slInput);
+                let slTipo = document.getElementById('ordSlTipo').value;
+                if(slTipo === 'PRICE') slPrice = slVal;
+                else if(slTipo === 'USD') slPrice = dirTrade === 'LONG' ? entryPrice - slVal : entryPrice + slVal;
+                else if(slTipo === 'PCT') slPrice = dirTrade === 'LONG' ? entryPrice * (1 - slVal/100) : entryPrice * (1 + slVal/100);
+            }
 
-            const tpVal = parseFloat(document.getElementById('ordTpVal').value) || 0;
-            const tpTipo = document.getElementById('ordTpTipo').value;
-            let tpPrice = 0;
-            if(tpTipo === 'PRICE') tpPrice = tpVal;
-            else if(tpTipo === 'USD') tpPrice = dirTrade === 'LONG' ? entryPrice + tpVal : entryPrice - tpVal;
-            else if(tpTipo === 'PCT') tpPrice = dirTrade === 'LONG' ? entryPrice * (1 + tpVal/100) : entryPrice * (1 - tpVal/100);
+            const tpInput = document.getElementById('ordTpVal').value;
+            let tpPrice = null;
+            if(tpInput !== "") {
+                let tpVal = parseFloat(tpInput);
+                let tpTipo = document.getElementById('ordTpTipo').value;
+                if(tpTipo === 'PRICE') tpPrice = tpVal;
+                else if(tpTipo === 'USD') tpPrice = dirTrade === 'LONG' ? entryPrice + tpVal : entryPrice - tpVal;
+                else if(tpTipo === 'PCT') tpPrice = dirTrade === 'LONG' ? entryPrice * (1 + tpVal/100) : entryPrice * (1 - tpVal/100);
+            }
 
-            const maxMinutos = parseInt(document.getElementById('ordTimeVal').value) || 0;
+            const timeInput = document.getElementById('ordTimeVal').value;
+            let targetMin = null;
+            if(timeInput !== "") {
+                let parts = timeInput.split(':');
+                targetMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            }
             
-            // MOTOR DE SIMULACIÓN AL FUTURO
             let exitPrice = null;
             let exitTime = null;
             let exitReason = "End Of Day";
-            
             const entryTime = selectedCandleData.time;
+            
+            const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
             
             for(let i = selectedCandleIndex + 1; i < globalVelasData.length; i++) {
                 let futureCandle = globalVelasData[i];
                 
-                // Límite de tiempo
-                if(maxMinutos > 0) {
-                    let minPasados = (futureCandle.time - entryTime) / 60;
-                    if(minPasados >= maxMinutos) {
-                        exitPrice = futureCandle.open; // Sale a mercado en la sig vela
+                if(targetMin !== null) {
+                    const timeParts = formatter.formatToParts(new Date(futureCandle.time * 1000));
+                    let hh = 0, mm = 0;
+                    timeParts.forEach(p => { if(p.type === 'hour') hh = parseInt(p.value, 10); if(p.type === 'minute') mm = parseInt(p.value, 10); });
+                    if(hh === 24) hh = 0;
+                    if((hh * 60 + mm) >= targetMin) {
+                        exitPrice = futureCandle.open;
                         exitTime = futureCandle.time;
-                        exitReason = "Time";
+                        exitReason = "Hora Límite";
                         break;
                     }
                 }
 
                 if(dirTrade === 'LONG') {
-                    if (futureCandle.low <= slPrice) { exitPrice = slPrice; exitTime = futureCandle.time; exitReason = "SL"; break; }
-                    if (futureCandle.high >= tpPrice) { exitPrice = tpPrice; exitTime = futureCandle.time; exitReason = "TP"; break; }
-                } else {
-                    // SHORT
-                    if (futureCandle.high >= slPrice) { exitPrice = slPrice; exitTime = futureCandle.time; exitReason = "SL"; break; }
-                    if (futureCandle.low <= tpPrice) { exitPrice = tpPrice; exitTime = futureCandle.time; exitReason = "TP"; break; }
+                    if (slPrice !== null && futureCandle.low <= slPrice) { exitPrice = slPrice; exitTime = futureCandle.time; exitReason = "SL"; break; }
+                    if (tpPrice !== null && futureCandle.high >= tpPrice) { exitPrice = tpPrice; exitTime = futureCandle.time; exitReason = "TP"; break; }
+                } else { 
+                    if (slPrice !== null && futureCandle.high >= slPrice) { exitPrice = slPrice; exitTime = futureCandle.time; exitReason = "SL"; break; }
+                    if (tpPrice !== null && futureCandle.low <= tpPrice) { exitPrice = tpPrice; exitTime = futureCandle.time; exitReason = "TP"; break; }
                 }
             }
             
-            // Si nunca salió, forzamos cierre al final de los datos cargados
             if(exitPrice === null) {
                 let lastCandle = globalVelasData[globalVelasData.length - 1];
                 exitPrice = lastCandle.close;
                 exitTime = lastCandle.time;
             }
 
-            // Registrar Trade
+            let pnl = 0;
+            if (dirTrade === 'LONG') { pnl = (exitPrice - entryPrice) * qtyShares; } 
+            else { pnl = (entryPrice - exitPrice) * qtyShares; }
+
+            // FORMATEO DE FECHA/HORA EXACTA DE NUEVA YORK
+            const fmtDate = t => {
+                const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(t * 1000));
+                let y, m, d;
+                parts.forEach(p => { if(p.type==='year') y=p.value; if(p.type==='month') m=p.value; if(p.type==='day') d=p.value; });
+                return `${y}-${m}-${d}`;
+            };
+            const fmtTime = t => {
+                const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(t * 1000));
+                let h, min;
+                parts.forEach(p => { if(p.type==='hour') h=p.value; if(p.type==='minute') min=p.value; });
+                if(h === '24') h = '00';
+                return `${h}:${min}`;
+            };
+
             const currentTicker = document.getElementById('tickerMassive').value.toUpperCase();
             const ctx = contextoTicker[currentTicker] || { gapPct: 'N/A', volPm: 'N/A', exchange: 'N/A' };
-            
-            // Formato humano para fechas
-            const fmt = t => new Date(t * 1000).toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
             const tradeObj = {
                 Ticker: currentTicker,
                 Direction: dirTrade,
-                EntryTime: fmt(entryTime),
-                ExitTime: fmt(exitTime),
-                EntryPrice: entryPrice.toFixed(2),
-                ExitPrice: exitPrice.toFixed(2),
-                Qty: qtyShares.toFixed(2),
+                EntryDate: fmtDate(entryTime),
+                EntryTime: fmtTime(entryTime),
+                ExitDate: fmtDate(exitTime),
+                ExitTime: fmtTime(exitTime),
+                EntryPrice: entryPrice.toFixed(2).replace('.', ','),
+                ExitPrice: exitPrice.toFixed(2).replace('.', ','),
+                Qty: qtyShares.toString().replace('.', ','),
+                PnL: pnl.toFixed(2).replace('.', ','),
                 Reason: exitReason,
-                GapPct: ctx.gapPct !== 'N/A' ? parseFloat(ctx.gapPct).toFixed(2) : 'N/A',
+                GapPct: ctx.gapPct !== 'N/A' ? parseFloat(ctx.gapPct).toFixed(2).replace('.', ',') : 'N/A',
                 VolPM: ctx.volPm,
-                Exchange: ctx.exchange
+                Exchange: ctx.exchange,
+                entryTimeRaw: entryTime, // Oculto en el CSV, usado para marcadores
+                exitTimeRaw: exitTime    // Oculto en el CSV, usado para marcadores
             };
             tradesHistory.push(tradeObj);
 
-            // DIBUJAR MARCADORES EN GRÁFICO
-            chartMarkers.push({
-                time: entryTime, position: dirTrade==='LONG'?'belowBar':'aboveBar', 
-                color: dirTrade==='LONG'?'#26a69a':'#ef5350', shape: dirTrade==='LONG'?'arrowUp':'arrowDown', text: 'Entrada'
-            });
-            chartMarkers.push({
-                time: exitTime, position: dirTrade==='LONG'?'aboveBar':'belowBar', 
-                color: '#ff9800', shape: dirTrade==='LONG'?'arrowDown':'arrowUp', text: `Cierre (${exitReason})`
-            });
-            
-            // Ordenar marcadores por tiempo (requisito de la librería)
-            chartMarkers.sort((a, b) => a.time - b.time);
-            velasMassive.setMarkers(chartMarkers);
+            actualizarMarcadores();
 
             cerrarModal('modalOrden');
             document.getElementById('btnNuevaOrden').disabled = true;
@@ -578,12 +596,21 @@
 
             if(tradesHistory.length === 0) { alert("No se registraron trades."); return; }
 
-            // Generar CSV
-            const headers = Object.keys(tradesHistory[0]).join(",");
-            const rows = tradesHistory.map(obj => Object.values(obj).join(",")).join("\n");
+            // Filtramos las columnas que sí queremos en el CSV
+            const exportData = tradesHistory.map(obj => {
+                let copy = {...obj};
+                delete copy.entryTimeRaw;
+                delete copy.exitTimeRaw;
+                return copy;
+            });
+
+            // PUNTO Y COMA para compatibilidad con Excel en Español
+            const headers = Object.keys(exportData[0]).join(";");
+            const rows = exportData.map(obj => Object.values(obj).join(";")).join("\n");
             const csvContent = headers + "\n" + rows;
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            // BOM (\uFEFF) PARA QUE EXCEL LEA UTF-8 CORRECTAMENTE (Arregla lo de las tildes)
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
@@ -592,7 +619,6 @@
             link.click();
             document.body.removeChild(link);
         }
-
 
         // ==========================================
         // MOTOR DEL ESCÁNER 
@@ -742,14 +768,11 @@
         const velasMassive = graficoMassive.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderDownColor: '#ef5350', borderUpColor: '#26a69a', wickDownColor: '#ef5350', wickUpColor: '#26a69a' });
         const volMassive = graficoMassive.addHistogramSeries({ priceScaleId: 'vol_scale', priceFormat: { type: 'volume' } });
         graficoMassive.priceScale('vol_scale').applyOptions({ visible: false, scaleMargins: { top: 0.7, bottom: 0 } });
-        const lineaAperturaMassive = graficoMassive.addLineSeries({ color: '#26a69a', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, crosshairMarkerVisible: false, priceLineVisible: false, lastValueVisible: false });
 
-        // CLICK EN GRÁFICO PARA BACKTEST
         graficoMassive.subscribeClick(param => {
             if(!isBacktesting) return;
-            if(!param.time) return; // Clic fuera de velas
+            if(!param.time) return; 
             
-            // Buscar la vela seleccionada en el array global
             const index = globalVelasData.findIndex(v => v.time === param.time);
             if(index !== -1) {
                 selectedCandleData = globalVelasData[index];
@@ -758,7 +781,6 @@
             }
         });
 
-        // LEYENDA HOVER
         graficoMassive.subscribeCrosshairMove(param => {
             const legend = document.getElementById('leyendaGrafico');
             if (!param.time || param.point.x < 0 || param.point.y < 0) { legend.style.display = 'none'; return; }
@@ -783,13 +805,23 @@
             const [mult, ran] = document.getElementById('tempMassive').value.split('/'); 
             if (!key || !fechasMassive.inicio) return;
 
+            // Limpiar las líneas del open de sesiones anteriores
+            lineasAperturaMassive.forEach(l => graficoMassive.removeSeries(l));
+            lineasAperturaMassive = [];
+
             const url = `https://api.massive.com/v2/aggs/ticker/${tk}/range/${mult}/${ran}/${fechasMassive.inicio}/${fechasMassive.fin}?adjusted=true&sort=asc&limit=50000&apiKey=${key}`;
             try {
                 const res = await fetch(url); const data = await res.json();
                 if (data.results && data.results.length > 0) {
-                    const vForm = [], volForm = [], bgForm = [], bgRaw = [], vwapForm = [], openLineForm = []; 
+                    const vForm = [], volForm = [], bgForm = [], bgRaw = [], vwapForm = []; 
                     const esDiario = (mult === '1' && ran === 'day');
-                    let sVolPr = 0, sVol = 0, diaActual = null, openNY = null;
+                    let sVolPr = 0, sVol = 0, diaActual = null;
+                    
+                    let openLinesData = [];
+                    let currentDayLine = [];
+                    let openNY = null;
+                    
+                    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
 
                     data.results.forEach(b => {
                         const tUnix = b.t / 1000;
@@ -797,11 +829,25 @@
                         
                         let ext = false;
                         if (!esDiario) {
-                            const [hh, mm] = hPt.split(':'); const minT = parseInt(hh) * 60 + parseInt(mm);
+                            const parts = formatter.formatToParts(new Date(b.t));
+                            let hh = 0, mm = 0;
+                            parts.forEach(p => { if (p.type === 'hour') hh = parseInt(p.value, 10); if (p.type === 'minute') mm = parseInt(p.value, 10); });
+                            if (hh === 24) hh = 0;
+                            const minT = hh * 60 + mm;
+
                             if (minT < 570 || minT >= 960) ext = true;
-                            if (diaActual !== fPt) { sVolPr = 0; sVol = 0; diaActual = fPt; openNY = null; }
+                            
+                            // Detectar cambio de día
+                            if (diaActual !== fPt) { 
+                                if (currentDayLine.length > 0) { openLinesData.push(currentDayLine); }
+                                sVolPr = 0; sVol = 0; diaActual = fPt; openNY = null; currentDayLine = [];
+                            }
+                            
+                            // Construir la línea del open dia a dia
                             if (openNY === null && minT >= 570 && minT < 960) openNY = b.o; 
-                            if (openNY !== null && minT >= 570 && minT < 960) openLineForm.push({ time: tUnix, value: openNY });
+                            if (openNY !== null && minT >= 570 && minT <= 960) {
+                                currentDayLine.push({ time: tUnix, value: openNY });
+                            }
                         } else {
                             if (diaActual !== fPt) { sVolPr = 0; sVol = 0; diaActual = fPt; }
                         }
@@ -812,16 +858,23 @@
                         vwapForm.push({ time: tUnix, value: sVolPr / sVol });
                         bgRaw.push({ time: tUnix, ext: ext });
                     });
+                    
+                    if (currentDayLine.length > 0) openLinesData.push(currentDayLine);
 
                     bgRaw.forEach((a, i) => { let val = a.ext ? 1 : 0; if (i < bgRaw.length - 1 && a.ext && !bgRaw[i+1].ext) val = 0; bgForm.push({ time: a.time, value: val }); });
 
-                    // Guardamos la info global para el backtester
                     globalVelasData = vForm;
 
-                    fondoMassive.setData(bgForm); vwapMassive.setData(vwapForm); velasMassive.setData(vForm); volMassive.setData(volForm); lineaAperturaMassive.setData(openLineForm); 
+                    fondoMassive.setData(bgForm); vwapMassive.setData(vwapForm); velasMassive.setData(vForm); volMassive.setData(volForm);
                     
-                    // Restaurar marcadores si estamos en backtest y volvemos a cargar el mismo rango
-                    if(isBacktesting) velasMassive.setMarkers(chartMarkers);
+                    // Dibujar líneas de Open separadas
+                    openLinesData.forEach(lineData => {
+                        const serie = graficoMassive.addLineSeries({ color: '#26a69a', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, crosshairMarkerVisible: false, priceLineVisible: false, lastValueVisible: false });
+                        serie.setData(lineData);
+                        lineasAperturaMassive.push(serie);
+                    });
+                    
+                    actualizarMarcadores();
                     
                     graficoMassive.timeScale().fitContent(); 
                 }
