@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visor Histórico Pro - Escáner Transparente</title>
+    <title>Visor Histórico Pro - Escáner PRO (Unleashed)</title>
     
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -53,20 +53,24 @@
         .grafico-contenedor {
             width: 100%; max-width: 1200px; flex-grow: 1; min-height: 400px;
             position: relative; background-color: #131722; border-radius: 8px; overflow: hidden;
+            display: flex; flex-direction: column;
         }
         
         /* TABLA DEL ESCANER */
+        .status-container {
+            width: 100%; max-width: 1200px; background-color: #2b313f; padding: 10px;
+            border-radius: 8px 8px 0 0; text-align: center; font-weight: bold; color: #d1d4dc;
+            box-sizing: border-box;
+        }
         .tabla-contenedor {
             width: 100%; max-width: 1200px; background-color: #1e222d;
-            border-radius: 8px; overflow-y: auto; flex-grow: 1;
+            border-radius: 0 0 8px 8px; overflow-y: auto; flex-grow: 1;
         }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
         th { background-color: #2b313f; padding: 12px; position: sticky; top: 0; z-index: 2; border-bottom: 2px solid #0b0e14;}
         td { padding: 12px; border-bottom: 1px solid #2b313f; transition: opacity 0.3s; }
         tr:hover td { background-color: rgba(41, 98, 255, 0.1); }
-        .status-row { text-align: center; font-style: italic; color: #8a93a6; }
-        .error-row { text-align: center; font-weight: bold; color: #ef5350; background-color: rgba(239, 83, 80, 0.1); }
-        .fila-descartada { opacity: 0.4; }
+        .fila-descartada { opacity: 0.3; }
 
         .floating-toolbar {
             position: absolute; top: 15px; left: 15px; z-index: 20; 
@@ -148,6 +152,9 @@
             
             <button class="btn-accion" id="btnBuscarGaps" onclick="ejecutarScanner()">BUSCAR</button>
         </div>
+        
+        <div id="estadoEscaner" class="status-container">Listo para escanear.</div>
+        
         <div class="tabla-contenedor">
             <table id="tablaGaps">
                 <thead>
@@ -161,8 +168,7 @@
                     </tr>
                 </thead>
                 <tbody id="cuerpoTablaGaps">
-                    <tr><td colspan="6" class="status-row">Selecciona un rango de fechas y presiona BUSCAR.</td></tr>
-                </tbody>
+                    </tbody>
             </table>
         </div>
     </div>
@@ -214,7 +220,7 @@
         }
 
         // ==========================================
-        // ESCÁNER DE GAPS: MOTOR TRANSPARENTE
+        // ESCÁNER DE GAPS: MOTOR PRO UNLEASHED
         // ==========================================
         let fechasScanner = { inicio: "", fin: "" };
         flatpickr("#btn-cal-scanner", {
@@ -234,9 +240,9 @@
             const url = `https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/${fechaStr}?adjusted=true&apiKey=${apiKey}`;
             const res = await fetch(url);
             
-            if (!res.ok) throw new Error("RATE_LIMIT");
+            if (!res.ok) throw new Error("API_ERROR");
             const data = await res.json();
-            if (data.status === "ERROR") throw new Error("RATE_LIMIT");
+            if (data.status === "ERROR") throw new Error("API_ERROR");
 
             const mapaTickers = {};
             if (data.results) data.results.forEach(stock => mapaTickers[stock.T] = stock);
@@ -249,11 +255,10 @@
             const url = `https://api.massive.com/v2/aggs/ticker/${ticker}/range/1/minute/${fecha}/${fecha}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
             try {
                 const res = await fetch(url);
-                if (!res.ok || res.status === 429) return -2; 
+                if (!res.ok) return 0; 
                 
                 const data = await res.json();
-                if (data.status === "ERROR") return -2; 
-                if (!data.results) return 0; 
+                if (data.status === "ERROR" || !data.results) return 0; 
 
                 let volPM = 0;
                 const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
@@ -272,7 +277,7 @@
                 });
                 return volPM;
             } catch (e) {
-                return -2; 
+                return 0; 
             }
         }
 
@@ -285,22 +290,25 @@
             const volMin = parseFloat(document.getElementById('volMin').value) || 0; 
             const btn = document.getElementById('btnBuscarGaps');
             const tabla = document.getElementById('cuerpoTablaGaps');
+            const statusBar = document.getElementById('estadoEscaner');
             
             if (!apiKey || !fechasScanner.inicio || !fechasScanner.fin) { alert("Configura API Key y elige las fechas."); return; }
             localStorage.setItem('massiveKey', apiKey);
 
-            tabla.innerHTML = `<tr><td colspan="6" class="status-row">Fase 1: Analizando mercado global...</td></tr>`;
+            tabla.innerHTML = ""; // Limpiamos la tabla
             btn.disabled = true;
+            let totalEncontradosGlobales = 0;
 
             let actual = new Date(fechasScanner.inicio + "T00:00:00");
             let limite = new Date(fechasScanner.fin + "T00:00:00");
-            let htmlGlobal = "";
 
             try {
                 while(actual <= limite) {
                     let diaSemana = actual.getDay();
                     if (diaSemana !== 0 && diaSemana !== 6) { 
                         let fechaHoyStr = actual.toISOString().split('T')[0];
+                        statusBar.innerText = `Fase 1: Descargando mercado global del ${fechaHoyStr}...`;
+                        
                         let dataHoy = await descargarDiaMercado(fechaHoyStr, apiKey);
 
                         if (Object.keys(dataHoy).length > 0) {
@@ -322,11 +330,9 @@
                                 intentosRetroceso--;
                             }
 
-                            // ALGORITMO TRANSPARENTE
                             if (dataAyer) {
                                 let tickersCandidatos = [];
                                 
-                                // Fase 1: Filtro de Precio y Porcentaje
                                 for (let ticker in dataHoy) {
                                     let hoy = dataHoy[ticker];
                                     let ayer = dataAyer[ticker];
@@ -339,49 +345,47 @@
                                     }
                                 }
 
-                                // Pintar los candidatos en la tabla ANTES de calcular el volumen
-                                for (let i = 0; i < tickersCandidatos.length; i++) {
-                                    let t = tickersCandidatos[i];
-                                    let colorStr = t.gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
-                                    let signo = t.gapPorcentaje > 0 ? '+' : '';
-                                    let rowId = `row-${t.ticker}-${fechaHoyStr}`;
-                                    let volId = `vol-${t.ticker}-${fechaHoyStr}`;
+                                if(tickersCandidatos.length > 0) {
+                                    let htmlDelDia = "";
+                                    for (let i = 0; i < tickersCandidatos.length; i++) {
+                                        let t = tickersCandidatos[i];
+                                        let colorStr = t.gapPorcentaje >= 0 ? '#26a69a' : '#ef5350';
+                                        let signo = t.gapPorcentaje > 0 ? '+' : '';
+                                        let rowId = `row-${t.ticker}-${fechaHoyStr}`;
+                                        let volId = `vol-${t.ticker}-${fechaHoyStr}`;
+                                        
+                                        htmlDelDia += `<tr id="${rowId}">
+                                            <td>${fechaHoyStr}</td>
+                                            <td><strong>${t.ticker}</strong></td>
+                                            <td>$${t.ayer.c.toFixed(2)}</td>
+                                            <td>$${t.hoy.o.toFixed(2)}</td>
+                                            <td style="color: ${colorStr}; font-weight: bold;">${signo}${t.gapPorcentaje.toFixed(2)}%</td>
+                                            <td id="${volId}" style="color: #2962ff; font-weight: bold;">Calculando PM...</td>
+                                        </tr>`;
+                                    }
+                                    // INSERCIÓN NO DESTRUCTIVA (Evita borrar el DOM de días anteriores)
+                                    tabla.insertAdjacentHTML('beforeend', htmlDelDia);
                                     
-                                    htmlGlobal += `<tr id="${rowId}">
-                                        <td>${fechaHoyStr}</td>
-                                        <td><strong>${t.ticker}</strong></td>
-                                        <td>$${t.ayer.c.toFixed(2)}</td>
-                                        <td>$${t.hoy.o.toFixed(2)}</td>
-                                        <td style="color: ${colorStr}; font-weight: bold;">${signo}${t.gapPorcentaje.toFixed(2)}%</td>
-                                        <td id="${volId}" style="color: #2962ff; font-weight: bold;">Calculando PM...</td>
-                                    </tr>`;
-                                }
-                                tabla.innerHTML = htmlGlobal;
+                                    statusBar.innerText = `Fase 2: Analizando volumen Pre-Market para ${tickersCandidatos.length} tickers del ${fechaHoyStr}...`;
 
-                                // Fase 2: Descargar Pre-market uno por uno y actualizar la tabla visualmente
-                                for (let i = 0; i < tickersCandidatos.length; i++) {
-                                    let t = tickersCandidatos[i];
-                                    let celdaVol = document.getElementById(`vol-${t.ticker}-${fechaHoyStr}`);
-                                    let fila = document.getElementById(`row-${t.ticker}-${fechaHoyStr}`);
-                                    
-                                    let volPM = await obtenerVolumenPremarket(t.ticker, fechaHoyStr, apiKey);
-                                    
-                                    if (volPM === -2) {
-                                        celdaVol.innerHTML = "Límite API / Error";
-                                        celdaVol.style.color = "#ef5350";
-                                        fila.classList.add("fila-descartada");
-                                    } else {
+                                    // VELOCIDAD MÁXIMA SIN DELAYS
+                                    for (let i = 0; i < tickersCandidatos.length; i++) {
+                                        let t = tickersCandidatos[i];
+                                        let celdaVol = document.getElementById(`vol-${t.ticker}-${fechaHoyStr}`);
+                                        let fila = document.getElementById(`row-${t.ticker}-${fechaHoyStr}`);
+                                        
+                                        let volPM = await obtenerVolumenPremarket(t.ticker, fechaHoyStr, apiKey);
+                                        
                                         if (volPM >= volMin) {
                                             celdaVol.innerHTML = volPM.toLocaleString();
-                                            celdaVol.style.color = "white"; // Pasa el filtro, se queda brillante
+                                            celdaVol.style.color = "white"; 
+                                            totalEncontradosGlobales++;
                                         } else {
                                             celdaVol.innerHTML = volPM.toLocaleString() + " (Menor al filtro)";
                                             celdaVol.style.color = "#8a93a6";
-                                            fila.classList.add("fila-descartada"); // Falla el filtro, se apaga visualmente
+                                            fila.classList.add("fila-descartada"); 
                                         }
                                     }
-                                    // Freno de mano para no saturar la API
-                                    await new Promise(resolve => setTimeout(resolve, 350)); 
                                 }
                             }
                         }
@@ -389,13 +393,15 @@
                     actual.setDate(actual.getDate() + 1);
                 }
 
-                if(htmlGlobal === "") {
-                    tabla.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. Ningún ticker superó la Fase 1.</td></tr>`;
+                if(totalEncontradosGlobales === 0 && tabla.innerHTML === "") {
+                    tabla.innerHTML = `<tr><td colspan="6" class="status-row">Escaneo completo. No se encontraron resultados.</td></tr>`;
                 }
+                statusBar.innerText = `✅ Escaneo completado. Encontrados: ${totalEncontradosGlobales}`;
 
             } catch (error) {
                 console.error(error);
-                tabla.innerHTML = `<tr><td colspan="6" class="error-row">⚠️ Límite de Massive API alcanzado. Espera 1 minuto y vuelve a intentar.</td></tr>` + htmlGlobal;
+                statusBar.innerText = `❌ Error de conexión con la API de Massive.`;
+                statusBar.style.color = "#ef5350";
             }
             
             btn.disabled = false;
